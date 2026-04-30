@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
 
     def init_vtk_actor(self):
         # Pintel
-        for i in range(1, 10):
+        for i in range(1, 65):
             reader = vtkDataSetReader()
             reader.SetFileName('')
             self.reader_dict[f'Pintel {i}'] = reader
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
 
         groups = [
             ('Grid', ['grid 2', 'grid 10', 'grid 100'], False),
-            ('Pintel', [f'Pintel {i}' for i in range(1, 10)], True),
+            ('Pintel', [f'Pintel {i}' for i in range(1, 65)], True),
             ('KETI', ['KETI'], True),
             ('Vueron', ['Vueron 1', 'Vueron 2'], True),
             ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4'], True),
@@ -518,7 +518,7 @@ class MainWindow(QMainWindow):
             elif base_name == 'KETI':
                 folder, ids = KETI_VTK_PATH, 1
             elif base_name[:6] == 'Pintel':
-                folder, ids = PINTEL_VTK_PATH, 100+int(base_name[7])
+                folder, ids = PINTEL_VTK_PATH, 100+int(base_name[7:])
             elif base_name == 'Vueron 1':
                 folder, ids = VUERON1_VTK_PATH, 1
             elif base_name == 'Vueron 2':
@@ -595,6 +595,10 @@ if __name__ == '__main__':
     window = MainWindow()
     window.resize(800, 600)
     window.show()
+    window.raise_()
+    window.activateWindow()
+    window.setWindowState((window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
+    QTimer.singleShot(50, lambda: (window.raise_(), window.activateWindow()))
 
     reader = vtkPNGReader()
     file_path = os.path.abspath(__file__)

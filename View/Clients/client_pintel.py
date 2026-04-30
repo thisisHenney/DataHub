@@ -30,7 +30,7 @@ class ClientPintel(MqttWidget):
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
 
         self.count_thread = 0
-        self.num_thread = 4
+        self.num_thread = 16
         self.savers = [FileSaverThread(CompanyType.Pintel, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
 
         self.checking_timer = QTimer()

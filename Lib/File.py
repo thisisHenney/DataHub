@@ -24,6 +24,62 @@ SEND_PINTEL_MERGED = 'PVX-V30/PA-7F000001/POT/CROWD/CROWD_MERGED'
 SEND_KETI_CONGESTION = 'crowd_congestion'
 
 
+_writer_queue = deque()
+_writer_event = threading.Event()
+_writer_lock = threading.Lock()
+
+
+class FileWriterThread(QThread):
+    def __init__(self):
+        super().__init__()
+        self.is_running = True
+
+    def stop(self):
+        self.is_running = False
+        _writer_event.set()
+
+    def run(self):
+        from vtkmodules.vtkIOLegacy import vtkDataSetWriter
+        while self.is_running:
+            try:
+                with _writer_lock:
+                    item = _writer_queue.popleft() if _writer_queue else None
+
+                if item is None:
+                    _writer_event.wait(timeout=0.5)
+                    _writer_event.clear()
+                    continue
+
+                kind, path, payload = item
+                if kind == 'json_compressed':
+                    payload.save_compressed_json(path)
+                elif kind == 'json':
+                    payload.save(path)
+                elif kind == 'vtk':
+                    writer = vtkDataSetWriter()
+                    writer.SetFileName(str(Path(path).absolute()))
+                    writer.SetInputData(payload)
+                    writer.SetFileTypeToBinary()
+                    writer.Write()
+
+                if len(_writer_queue) >= 50:
+                    print(f'[Writer] queue length {len(_writer_queue)}')
+
+            except Exception as e:
+                print("[Writer Notice]: " + str(e))
+
+
+def _enqueue_write(kind, path, payload):
+    with _writer_lock:
+        _writer_queue.append((kind, path, payload))
+    _writer_event.set()
+
+
+def get_writer_queue_size():
+    with _writer_lock:
+        return len(_writer_queue)
+
+
 class FileSaverThread(QThread):
     finished = Signal(str)  # 저장 완료 시 메시지 전달
 
@@ -43,7 +99,7 @@ class FileSaverThread(QThread):
 
     def stop(self):
         self.is_running = False
-        self._event.set()  # 대기 중인 스레드를 즉시 깨움
+        self._event.set()
 
     def run(self):
         while self.is_running:
@@ -54,9 +110,9 @@ class FileSaverThread(QThread):
                     json_data = JsonRW()
                     json_data.load(message)
                     if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
-                        json_data.save_compressed_json(filepath/(filename + '.json'))
+                        _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
                     else:
-                        json_data.save(filepath / (filename + '.json'))
+                        _enqueue_write('json', filepath / (filename + '.json'), json_data)
 
                     self.converter.set_data_company(self.CompanyType)
                     valid = self.converter.load_array_from_json_string(message)
@@ -67,7 +123,7 @@ class FileSaverThread(QThread):
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
 
-                    self.converter.write_vtk_file(filepath/'VTK'/(filename + '.vtk'))
+                    _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_result)
                     if len(self.stack) >= 10:
                         print(self.CompanyType.name, "stack length", len(self.stack))
                 else:
@@ -139,20 +195,20 @@ class FileMergingThread(QThread):
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
 
-            for s_id in (101, 102, 103, 104, 105, 106, 107, 108):
-                c1 = arr[:, 0] == s_id
-                c2 = dt_array < merge_limit_milli_sec
-                idxs = np.where(np.logical_and(c1, c2))[0]
-
-                if not idxs.size > 0:
-                    continue
-
-                min_idx = idxs[np.argmin(dt_array[idxs])]
-                key = pintel_filename_list[min_idx]
+            valid_mask = dt_array < merge_limit_milli_sec
+            valid_idxs = np.where(valid_mask)[0]
+            if valid_idxs.size > 0:
+                valid_ids = arr[valid_idxs, 0]
+                unique_ids = np.unique(valid_ids)
                 with self.pintel_lock:
-                    if key in self.vtk_data_dict_pintel:
-                        pintel_data_list.append(self.vtk_data_dict_pintel[key])
-                        pintel_used_keys.add(key)
+                    for s_id in unique_ids:
+                        sid_mask = valid_ids == s_id
+                        sid_idxs = valid_idxs[sid_mask]
+                        min_idx = sid_idxs[np.argmin(dt_array[sid_idxs])]
+                        key = pintel_filename_list[min_idx]
+                        if key in self.vtk_data_dict_pintel:
+                            pintel_data_list.append(self.vtk_data_dict_pintel[key])
+                            pintel_used_keys.add(key)
 
             expired_keys = {pintel_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
             keys_to_delete = pintel_used_keys | expired_keys

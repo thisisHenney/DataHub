@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, QPoint, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QMainWindow, QLabel, QPushButton, QMessageBox
-from Lib.File import make_dir, FileMergingThread
+from Lib.File import make_dir, FileMergingThread, FileWriterThread, get_writer_queue_size
 from View.main_window_ui import Ui_MainWindow
 
 from View.Clients.client_pintel import ClientPintel
@@ -61,6 +61,11 @@ class MainWindow(QMainWindow):
             for i in range(self.num_merge_threads)]
         for mt in self.merging_thread_list:
             mt.merge_info.connect(self._on_merge_info)
+
+        self.num_writer_threads = 4
+        self.writer_thread_list = [FileWriterThread() for _ in range(self.num_writer_threads)]
+        for wt in self.writer_thread_list:
+            wt.start()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.make_file_merging_thread)
@@ -180,7 +185,6 @@ class MainWindow(QMainWindow):
     def end(self):
         self.timer.stop()
 
-        # merging 스레드 먼저 중단 요청 (sleep에서 즉시 깨어남)
         for mt in self.merging_thread_list:
             mt.stop()
 
@@ -193,6 +197,11 @@ class MainWindow(QMainWindow):
 
         for mt in self.merging_thread_list:
             mt.wait(5000)
+
+        for wt in self.writer_thread_list:
+            wt.stop()
+        for wt in self.writer_thread_list:
+            wt.wait(5000)
 
     def _setup_merge_info_ui(self):
         from PySide6.QtWidgets import QGridLayout, QFrame
