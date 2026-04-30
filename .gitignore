@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.idea/
+.vscode/
+.claude/
+
+Data/Error/
+Data/Send/
+received_data/
+
+*.log
+*.tmp

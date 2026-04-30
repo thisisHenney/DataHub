@@ -1,0 +1,43 @@
+{
+  'id' : 0,
+  'clientID' : 9,
+  'mode' : 32769,
+  'frameSeq' : 11706,
+  'createdAt' : "2025-09-12T07:40:14.943014502Z",
+  'areaID' : 2,
+  'areaSeqNum' : 0,
+  'activeLidar' : 2,
+  'client' : {
+    'id' : 9,
+    'createdAt' : '2024-09-24T06:35:46.117Z',
+    'updatedAt' : '2025-09-12T07:40:14.463Z',
+    'deletedAt' : 0,
+    'areaID' : 2,
+    'name' : 'AGX',
+    'description' : 'Demo',
+    'host' : '192.168.10.205',
+    'port' : 10221,
+    'fingerprint' : '2766772cf22ea557f0ee3393fbf49eb2887755a9db51e708fd7043b600f73b60',
+    'lidarCount' : 2,
+    'frameRate' : 100,
+    'clientMode' : 32769,
+    'alarmType' : 'None',
+    'area' : {
+      'id' : 2,
+      'createdAt' : '2024-09-24T06:35:28.606Z',
+      'updatedAt' : '2025-05-22T16:14:49.392Z',
+      'deletedAt' : 0,
+      'name' : 'Gyuho',
+      'description' : 'Gyuho',
+      'clients' : []
+    },
+    'calibration' : {
+      'clientID' : 9,
+      'x' : 0,
+      'y' : 0,
+      'z' : 0,
+      'yaw' : 0
+    }
+  },
+  'zoneFrames' : []
+}

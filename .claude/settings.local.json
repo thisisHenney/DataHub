@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m PySide6.scripts.pyside_tool uic -g python \"View/main_window.ui\" -o \"View/main_window_ui.py\")",
+      "Bash(pyside6-uic \"View/main_window.ui\" -o \"View/main_window_ui.py\")",
+      "Bash(python -c \"from PySide6.QtWidgets import QApplication; import PySide6; print\\(PySide6.__version__\\)\")",
+      "Bash(where pyside6-uic:*)",
+      "Bash(python -c \"import PySide6; import os; print\\(os.path.dirname\\(PySide6.__file__\\)\\)\")",
+      "Bash(\"C:\\\\Users\\\\thisi\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\pyside6-uic.exe\" \"View/main_window.ui\" -o \"View/main_window_ui.py\")",
+      "Bash(find \"d:/projects/2024-01_MCST_Crowd/2.Src/GUI/DataHub\" -type d -name \"__pycache__\" -exec rm -rf {} +)",
+      "Bash(git init *)",
+      "PowerShell(git init)",
+      "PowerShell(git branch -M main)",
+      "PowerShell(git remote add origin git@github.com:thisisHenney/DataHub.git)",
+      "PowerShell(git add .)"
+    ]
+  }
+}
