@@ -664,11 +664,14 @@ class MainWindow(QMainWindow):
         return lut
 
 
-if __name__ == '__main__':
+def run():
+    app = QApplication(sys.argv)
 
-    app = QApplication([])
+    if getattr(sys, 'frozen', False):
+        style_path = Path(sys._MEIPASS) / 'settings' / 'style.qss'
+    else:
+        style_path = Path(os.path.abspath(__file__)).parent.parent.parent / 'settings' / 'style.qss'
 
-    style_path = Path(os.path.abspath(__file__)).parent.parent.parent / 'settings' / 'style.qss'
     if style_path.is_file():
         with open(style_path, 'r', encoding='utf-8') as f:
             app.setStyleSheet(f.read())
@@ -690,4 +693,8 @@ if __name__ == '__main__':
     window.view_dock.fitCamera()
 
     app.exec()
+
+
+if __name__ == '__main__':
+    run()
 

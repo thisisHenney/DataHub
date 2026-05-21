@@ -442,16 +442,10 @@ class MainWindow(QMainWindow):
     def clicked_run_live_viewer(self):
         self.log('Launch Live Viewer')
         if getattr(sys, 'frozen', False):
-            # PyInstaller 번들: live_viewer.exe를 exe와 같은 폴더에서 찾음
-            viewer_exe = Path(sys.executable).parent / 'live_viewer.exe'
-            if viewer_exe.is_file():
-                subprocess.Popen([str(viewer_exe)], env=os.environ.copy())
-            else:
-                self.log(f'live_viewer.exe not found: {viewer_exe}')
+            subprocess.Popen([sys.executable, '--live-viewer'], env=os.environ.copy())
         else:
-            # 소스 실행: live_viewer 디렉토리를 cwd로 지정해 로컬 import 보장
-            script = Path(os.path.dirname(__file__)).parent / 'Lib' / 'live_viewer' / 'main_window.py'
-            subprocess.Popen([sys.executable, str(script)], cwd=str(script.parent), env=os.environ.copy())
+            main_py = Path(os.path.dirname(__file__)).parent / 'main.py'
+            subprocess.Popen([sys.executable, str(main_py), '--live-viewer'], env=os.environ.copy())
 
     def clicked_open_received_path_vueron(self):
         self.log('Open Vueron received folder')
