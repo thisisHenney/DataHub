@@ -11,7 +11,7 @@ PORT = 1883
 TOPIC = "PVX-V30/PA-7F000001/POT/CROWD/JSON"
 
 home_dir = os.path.expanduser("~")
-JSON_FOLDER = Path(rf"{home_dir}\AppData\Local\NEXTfoam\DataHub\v1.01\received_data\pintel")
+JSON_FOLDER = Path(rf"{home_dir}\AppData\Local\NEXTfoam\DataHub\v1.2\received_data\pintel")
 
 client = mqtt.Client()
 client.connect(BROKER, PORT)

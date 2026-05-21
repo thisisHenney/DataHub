@@ -2,6 +2,7 @@ from pathlib import Path
 from time import sleep
 
 import os
+import sys
 
 import numpy as np
 import vtk
@@ -127,12 +128,28 @@ from PySide6.QtWidgets import QApplication
 # VUERON1_VTK_PATH = Path('./dummy/vueron_01')
 # VUERON2_VTK_PATH = Path('./dummy/vueron_02')
 
-COMMON_PATH = Path(f'{Path.home()}/AppData/Local/NEXTfoam/DataHub/v1.01/received_data')
+COMMON_PATH = Path(f'{Path.home()}/AppData/Local/NEXTfoam/DataHub/v1.2/received_data')
 PINTEL_VTK_PATH = COMMON_PATH / 'pintel/VTK'
 KETI_VTK_PATH = COMMON_PATH / 'keti/VTK'
 VUERON1_VTK_PATH = COMMON_PATH / 'vueron_02/VTK'
 VUERON2_VTK_PATH = COMMON_PATH / 'vueron_01/VTK'
 UNION_VTK_PATH = COMMON_PATH / 'keti/Send/VTK'
+
+# 지도 파일별 VTK 좌표계 정렬 파라미터
+# translate: 이미지 원점 오프셋 (tx, ty, tz)
+# scale: 픽셀 → 미터 변환 비율 (sx, sy, sz)
+MAP_CONFIG = {
+    'Nanji 2026 (edited)': {
+        'file': 'nanji_2026_edited.png',
+        'translate': (-11.2, -3, 0),
+        'scale': (0.10155, 0.10155, 1),
+    },
+    'Nanji (original)': {
+        'file': 'nanji_drawing_new.png',
+        'translate': (-11.2, -3, 0),
+        'scale': (0.10155, 0.10155, 1),
+    },
+}
 
 
 class MainWindow(QMainWindow):
@@ -158,6 +175,18 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.time_goes_on)
         self.timer.start()
+
+        if getattr(sys, 'frozen', False):
+            self._dir_path = sys._MEIPASS
+        else:
+            self._dir_path = os.path.dirname(os.path.abspath(__file__))
+        self._map_actor = None
+        self._map_reader = None
+        self._map_tr = None
+        self._map_trs = None
+        for name in MAP_CONFIG:
+            self._ui.comboBox_map.addItem(name)
+        self._ui.comboBox_map.currentIndexChanged.connect(self._on_map_changed)
 
     def init_vtk_actor(self):
         # Pintel
@@ -462,6 +491,50 @@ class MainWindow(QMainWindow):
                     if name in self.actor_dict and self.actor_dict[name] in current_actors:
                         renderer.AddActor(self.actor_dict[name])
 
+    def _init_map(self):
+        name = self._ui.comboBox_map.currentText()
+        cfg = MAP_CONFIG[name]
+        filepath = os.path.join(self._dir_path, cfg['file'])
+        tx, ty, tz = cfg['translate']
+        sx, sy, sz = cfg['scale']
+
+        self._map_reader = vtkPNGReader()
+        self._map_reader.SetFileName(filepath)
+
+        self._map_tr = vtkTransform()
+        self._map_tr.Translate(tx, ty, tz)
+        self._map_tr.Scale(sx, sy, sz)
+
+        self._map_trs = vtkTransformFilter()
+        self._map_trs.SetInputConnection(self._map_reader.GetOutputPort())
+        self._map_trs.SetTransform(self._map_tr)
+
+        mapper = vtkDataSetMapper()
+        mapper.SetInputConnection(self._map_trs.GetOutputPort())
+
+        self._map_actor = vtkActor()
+        self._map_actor.SetMapper(mapper)
+        self.view_dock.addActor(self._map_actor)
+
+    def _on_map_changed(self, index):
+        if self._map_reader is None:
+            return
+        name = self._ui.comboBox_map.itemText(index)
+        cfg = MAP_CONFIG[name]
+        filepath = os.path.join(self._dir_path, cfg['file'])
+        tx, ty, tz = cfg['translate']
+        sx, sy, sz = cfg['scale']
+
+        self._map_reader.SetFileName(filepath)
+        self._map_reader.Modified()
+
+        self._map_tr.Identity()
+        self._map_tr.Translate(tx, ty, tz)
+        self._map_tr.Scale(sx, sy, sz)
+        self._map_tr.Modified()
+
+        self.view_dock.refresh()
+
     def button_clicked(self):
         self.time = 4
         self.read_latest_file()
@@ -600,41 +673,7 @@ if __name__ == '__main__':
     window.setWindowState((window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
     QTimer.singleShot(50, lambda: (window.raise_(), window.activateWindow()))
 
-    reader = vtkPNGReader()
-    file_path = os.path.abspath(__file__)
-    dir_path = os.path.dirname(file_path)
-    # reader.SetFileName(Path(f'{dir_path}/nanji_drawing2.png'))
-    reader.SetFileName(Path(f'{dir_path}/nanji_drawing_new.png'))
-
-    trs = vtkTransformFilter()
-    trs.SetInputConnection(reader.GetOutputPort())
-    tr = vtkTransform()
-    tr.Translate(-11.2, -3, 0)
-    tr.Scale(0.10155, 0.10155, 1)
-    # tr.RotateZ(-36.8)
-    trs.SetTransform(tr)
-
-    mapper = vtkDataSetMapper()
-    mapper.SetInputConnection(trs.GetOutputPort())
-
-    actor = vtkActor()
-    actor.SetMapper(mapper)
-
-    # reader = vtkUnstructuredGridReader()
-    # reader.SetFileName('./vtk_json_converter/fense2.vtk')
-    # mapper = vtkDataSetMapper()
-    # mapper.SetInputConnection(reader.GetOutputPort())
-    # actor = vtkActor()
-    # actor.SetMapper(mapper)
-    #
-    # reader = vtkDataSetReader()
-    # reader.SetFileName('./vtk_json_converter/grid_lines.vtk')
-    # mapper = vtkDataSetMapper()
-    # mapper.SetInputConnection(reader.GetOutputPort())
-    # actor5 = vtkActor()
-    # actor5.SetMapper(mapper)
-
-    window.view_dock.addActor(actor)
+    window._init_map()
 
     camera = window.view_dock.view().renderer().GetActiveCamera()
     camera.SetClippingRange(1, 1e9)

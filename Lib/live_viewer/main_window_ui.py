@@ -15,12 +15,12 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QListWidget,
+from PySide6.QtWidgets import (QApplication, QComboBox, QGridLayout, QLabel, QListWidget,
     QListWidgetItem, QMainWindow, QMenuBar, QPushButton,
     QSizePolicy, QSplitter, QStatusBar, QVBoxLayout,
     QWidget)
 
-from Lib.live_viewer.rendering_widget.rendering_dock import RenderingView
+from rendering_widget.rendering_dock import RenderingView
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -39,6 +39,11 @@ class Ui_MainWindow(object):
         self.verticalLayout = QVBoxLayout(self.layoutWidget)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.comboBox_map = QComboBox(self.layoutWidget)
+        self.comboBox_map.setObjectName(u"comboBox_map")
+
+        self.verticalLayout.addWidget(self.comboBox_map)
+
         self.pushButton = QPushButton(self.layoutWidget)
         self.pushButton.setObjectName(u"pushButton")
 

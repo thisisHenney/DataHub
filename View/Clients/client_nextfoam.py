@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf8-*-
 
-import re
 from datetime import datetime
 from pathlib import Path
 from PySide6.QtGui import QIntValidator

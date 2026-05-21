@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf8-*-
 
-import re
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -158,7 +157,9 @@ class ClientVueron01(WebSocketWidget):
 
         else:
             self.parent.log('Vueron_01 >> Invalid Json Data')
-            with open(Path(f'{self.app_info.app_path}/Data/Error/vueron/error_vueron_01.log'), 'a', encoding='utf-8') as f:
+            log_path = Path(f'{self.app_info.app_path}/Data/Error/vueron/error_vueron_01.log')
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(message)
 
     def send_message_task(self, msg):

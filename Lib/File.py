@@ -620,7 +620,7 @@ def copy_files(src_dir, dest_dir, pattern='*'):
 
     for root, _, files in os.walk(src_dir):
         for file_name in files:
-            if glob.fnmatch.fnmatch(file_name, pattern):
+            if fnmatch.fnmatch(file_name, pattern):
                 src_path = os.path.join(root, file_name)
                 rel_path = os.path.relpath(root, src_dir)
                 dest_path = os.path.join(dest_dir, rel_path)
@@ -636,7 +636,7 @@ def move_files(src_dir, dest_dir, pattern='*'):
 
     for root, _, files in os.walk(src_dir):
         for file_name in files:
-            if glob.fnmatch.fnmatch(file_name, pattern):
+            if fnmatch.fnmatch(file_name, pattern):
                 src_path = os.path.join(root, file_name)
                 rel_path = os.path.relpath(root, src_dir)
                 dest_path = os.path.join(dest_dir, rel_path)
@@ -652,7 +652,7 @@ def copy_file2(src, obj):
     obj = to_absolute_path(obj)
 
     fil_name_ext = get_file_name_ext(src)
-    obj_file = Path(f'{obj}'/f'{fil_name_ext}')
+    obj_file = Path(obj) / fil_name_ext
     shutil.copy2(src, obj_file)
 
 

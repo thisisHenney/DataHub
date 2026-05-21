@@ -4,6 +4,8 @@ __pycache__/
 .idea/
 .vscode/
 .claude/
+venv/
+.venv/
 
 Data/Error/
 Data/Send/

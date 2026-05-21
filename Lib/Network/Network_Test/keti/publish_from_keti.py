@@ -11,7 +11,7 @@ PORT = 1883
 TOPIC = "rpi_density"
 
 home_dir = os.path.expanduser("~")
-JSON_FOLDER = Path(rf"{home_dir}\AppData\Local\NEXTfoam\DataHub\v1.01\received_data\keti")
+JSON_FOLDER = Path(rf"{home_dir}\AppData\Local\NEXTfoam\DataHub\v1.2\received_data\keti")
 
 client = mqtt.Client()
 client.connect(BROKER, PORT)

@@ -20,7 +20,7 @@ def vueron(converter):
 def keti(converter):
     converter.set_data_company(CompanyType.KETI)
     # converter.load_array_from_json_file(Path('./vtk_json_converter/keti.json'))
-    converter.load_array_from_json_file(Path('C:\\Users\\nextfoam-CV-user\\AppData\\Local\\NEXTfoam\\DataHub\\v1.01\\received_data\\keti\\0001_20250524_053019588.json'))
+    converter.load_array_from_json_file(Path('C:\\Users\\nextfoam-CV-user\\AppData\\Local\\NEXTfoam\\DataHub\\v1.2\\received_data\\keti\\0001_20250524_053019588.json'))
     converter.make_vtk()
     converter.write_vtk_file('test_keti.vtk')
 

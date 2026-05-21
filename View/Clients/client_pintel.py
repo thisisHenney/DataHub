@@ -178,7 +178,9 @@ class ClientPintel(MqttWidget):
                 self.count_thread = 0
         else:
             self.parent.log('PINTEL >> Invalid Json Data')
-            with open(Path(f'{self.app_info.app_path}/Data/Error/pintel/error_pintel.log'), 'a', encoding='utf-8') as f:
+            log_path = Path(f'{self.app_info.app_path}/Data/Error/pintel/error_pintel.log')
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(topic_data)
 
     def on_message_task_by_topic_merged(self, topic_data):

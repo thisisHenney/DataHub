@@ -2,6 +2,8 @@
 # -*-coding:utf8-*-
 
 import os
+import subprocess
+import sys
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -75,7 +77,7 @@ class MainWindow(QMainWindow):
         self._setup_merge_info_ui()
         self.ui.groupBox_2.setTitle('< Log >')
 
-        self.setWindowTitle(f'DataHub-v1.01-[{self.app_info.data_path}]')
+        self.setWindowTitle(f'DataHub-v1.2-[{self.app_info.data_path}]')
 
     def make_file_merging_thread(self):
         now = datetime.now()
@@ -391,8 +393,7 @@ class MainWindow(QMainWindow):
         window_geometry = self.frameGeometry()
         center_point = screen_geometry.center()
         window_geometry.moveCenter(center_point)
-        self.move(window_geometry.topLeft())
-        # self.move(QPoint(120,0))
+        self.move(window_geometry.left(), screen_geometry.top())
 
     def clicked_connect_all(self):
         self.log('Connect All')
@@ -440,13 +441,17 @@ class MainWindow(QMainWindow):
 
     def clicked_run_live_viewer(self):
         self.log('Launch Live Viewer')
-        import subprocess
-        import os
-
-        cur_env = os.environ.copy()
-        python_path = Path(r'python.exe')
-
-        process = subprocess.Popen([python_path,".\Lib\live_viewer\main_window.py"], env=cur_env)
+        if getattr(sys, 'frozen', False):
+            # PyInstaller 번들: live_viewer.exe를 exe와 같은 폴더에서 찾음
+            viewer_exe = Path(sys.executable).parent / 'live_viewer.exe'
+            if viewer_exe.is_file():
+                subprocess.Popen([str(viewer_exe)], env=os.environ.copy())
+            else:
+                self.log(f'live_viewer.exe not found: {viewer_exe}')
+        else:
+            # 소스 실행: live_viewer 디렉토리를 cwd로 지정해 로컬 import 보장
+            script = Path(os.path.dirname(__file__)).parent / 'Lib' / 'live_viewer' / 'main_window.py'
+            subprocess.Popen([sys.executable, str(script)], cwd=str(script.parent), env=os.environ.copy())
 
     def clicked_open_received_path_vueron(self):
         self.log('Open Vueron received folder')

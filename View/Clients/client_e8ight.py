@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf8-*-
 
-import re
 from pathlib import Path
 from Lib.File import make_dir, FileSaverThread
 from Lib.Json.JsonRW import JsonRW

@@ -10,7 +10,7 @@ from View.main_window import MainWindow
 @dataclass
 class AppInfo:
     title: str = 'DataHub'
-    version: str = 'v1.01'
+    version: str = 'v1.2'
 
     timestamp: str = ''
 
