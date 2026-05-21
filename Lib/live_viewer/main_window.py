@@ -137,16 +137,20 @@ UNION_VTK_PATH = COMMON_PATH / 'keti/Send/VTK'
 
 # 지도 파일별 VTK 좌표계 정렬 파라미터
 # translate: 이미지 원점 오프셋 (tx, ty, tz)
+# rotate: Z축 회전각 (도)
 # scale: 픽셀 → 미터 변환 비율 (sx, sy, sz)
+# 적용 순서: Translate → RotateZ → Scale
 MAP_CONFIG = {
     'Nanji 2026 (edited)': {
         'file': 'nanji_2026_edited.png',
-        'translate': (-11.2, -3, 0),
-        'scale': (0.10155, 0.10155, 1),
+        'translate': (-67.5, -87, 0),
+        'rotate': -36.6,
+        'scale': (0.20825, 0.20825, 1),
     },
     'Nanji (original)': {
         'file': 'nanji_drawing_new.png',
         'translate': (-11.2, -3, 0),
+        'rotate': 0,
         'scale': (0.10155, 0.10155, 1),
     },
 }
@@ -496,6 +500,7 @@ class MainWindow(QMainWindow):
         cfg = MAP_CONFIG[name]
         filepath = os.path.join(self._dir_path, cfg['file'])
         tx, ty, tz = cfg['translate']
+        rotate = cfg.get('rotate', 0)
         sx, sy, sz = cfg['scale']
 
         self._map_reader = vtkPNGReader()
@@ -503,6 +508,7 @@ class MainWindow(QMainWindow):
 
         self._map_tr = vtkTransform()
         self._map_tr.Translate(tx, ty, tz)
+        self._map_tr.RotateZ(rotate)
         self._map_tr.Scale(sx, sy, sz)
 
         self._map_trs = vtkTransformFilter()
@@ -523,6 +529,7 @@ class MainWindow(QMainWindow):
         cfg = MAP_CONFIG[name]
         filepath = os.path.join(self._dir_path, cfg['file'])
         tx, ty, tz = cfg['translate']
+        rotate = cfg.get('rotate', 0)
         sx, sy, sz = cfg['scale']
 
         self._map_reader.SetFileName(filepath)
@@ -530,6 +537,7 @@ class MainWindow(QMainWindow):
 
         self._map_tr.Identity()
         self._map_tr.Translate(tx, ty, tz)
+        self._map_tr.RotateZ(rotate)
         self._map_tr.Scale(sx, sy, sz)
         self._map_tr.Modified()
 
