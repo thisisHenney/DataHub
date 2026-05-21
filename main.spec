@@ -3,10 +3,23 @@
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=['Lib/live_viewer'],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        ('Lib/live_viewer/nanji_drawing_new.png', '.'),
+        ('Lib/live_viewer/nanji_2026_edited.png', '.'),
+        ('settings', 'settings'),
+    ],
+    hiddenimports=[
+        'main_window',
+        'main_window_ui',
+        'rendering_widget',
+        'rendering_widget.rendering_dock',
+        'rendering_widget.rendering_widget',
+        'rendering_widget.rendering_view_ui',
+        'rendering_widget.flat_push_button',
+        'rendering_widget.resource_rc',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
