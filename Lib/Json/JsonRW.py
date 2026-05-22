@@ -3,7 +3,6 @@
 
 import json
 import os
-import copy
 import gzip
 from pathlib import Path
 
@@ -64,20 +63,19 @@ class JsonRW:
             self._file = Path(file)
 
         with open(self._file, 'w', encoding='utf-8') as f:
-            json.dump(copy.deepcopy(self._buffer), f, ensure_ascii=False, indent=indent)
+            json.dump(self._buffer, f, ensure_ascii=False, indent=indent)
 
     def save_compressed_json(self, file: Path):
         self._file = file
         with gzip.open(self._file.with_suffix('.json.gz'), 'wt', encoding='utf-8', compresslevel=1) as f:
-            text = json.dumps(copy.deepcopy(self._buffer), ensure_ascii=False, indent=None)
-            f.write(text)
+            json.dump(self._buffer, f, ensure_ascii=False, indent=None)
 
     def load(self, json_data=""):
-        if not self.is_valid_json(json_data):
+        try:
+            self._buffer = json.loads(json_data)
+            return True
+        except (json.JSONDecodeError, ValueError, TypeError):
             return False
-
-        self._buffer = json.loads(json_data)
-        return True
 
     def check(self, keys):
         _buffer = self._buffer

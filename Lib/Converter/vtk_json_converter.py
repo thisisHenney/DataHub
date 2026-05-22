@@ -48,6 +48,9 @@ class VtkJsonConverter:
         reader.load(string)
         return self._load_array_from_json(reader)
 
+    def load_array_from_reader(self, reader: JsonRW):
+        return self._load_array_from_json(reader)
+
     def load_array_from_json_file(self, file_path: Path, encoding='UTF-8'):
         reader = JsonRW()
         reader.read(file_path, encoding=encoding)

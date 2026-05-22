@@ -149,7 +149,7 @@ class ClientVueron02(WebSocketWidget):
             filename = (f"{id_data:04d}_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
 
             saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.vueron_02_path, filename, message))
+            saver.stack.append((self.app_info.vueron_02_path, filename, json_data))
             saver.notify()
             self.count_thread += 1
             if self.count_thread == self.num_thread:

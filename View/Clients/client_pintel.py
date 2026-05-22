@@ -171,7 +171,7 @@ class ClientPintel(MqttWidget):
             filename = f"{id_data}_{timestamp_filename}"
 
             saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.pintel_path, filename, topic_data))
+            saver.stack.append((self.app_info.pintel_path, filename, json_data))
             saver.notify()
             self.count_thread += 1
             if self.count_thread == self.num_thread:

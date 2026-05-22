@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf8 -*-
 from collections import deque
-from copy import deepcopy
 from datetime import datetime, timedelta
 import glob
 import os
@@ -105,17 +104,21 @@ class FileSaverThread(QThread):
         while self.is_running:
             try:
                 if self.stack:
-                    filepath, filename, message = self.stack.popleft()
+                    filepath, filename, json_data = self.stack.popleft()
 
-                    json_data = JsonRW()
-                    json_data.load(message)
+                    if isinstance(json_data, (str, bytes, bytearray)):
+                        message = json_data
+                        json_data = JsonRW()
+                        if not json_data.load(message):
+                            continue
+
                     if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
                         _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
                     else:
                         _enqueue_write('json', filepath / (filename + '.json'), json_data)
 
                     self.converter.set_data_company(self.CompanyType)
-                    valid = self.converter.load_array_from_json_string(message)
+                    valid = self.converter.load_array_from_reader(json_data)
                     if isinstance(valid, str):
                         print(valid)
                         continue

@@ -171,7 +171,7 @@ class ClientKeti(MqttWidget):
             filename = ( "0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond/1000):03d}')
 
             saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.keti_path, filename, message))
+            saver.stack.append((self.app_info.keti_path, filename, json_data))
             saver.notify()
             self.count_thread += 1
             if self.count_thread == self.num_thread:
