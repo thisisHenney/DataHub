@@ -141,10 +141,10 @@ UNION_VTK_PATH = COMMON_PATH / 'keti/Send/VTK'
 # scale: 픽셀 → 미터 변환 비율 (sx, sy, sz)
 # 적용 순서: Translate → RotateZ → Scale
 MAP_CONFIG = {
-    'Nanji 2026 (edited)': {
-        'file': 'nanji_2026_edited.png',
+    'Nanji 20260522': {
+        'file': 'nanji_20260522_001.png',
         'translate': (-67.5, -87, 0),
-        'rotate': -36.6,
+        'rotate': 0,
         'scale': (0.20825, 0.20825, 1),
     },
     'Nanji (original)': {

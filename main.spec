@@ -7,7 +7,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('Lib/live_viewer/nanji_drawing_new.png', '.'),
-        ('Lib/live_viewer/nanji_2026_edited.png', '.'),
+        ('Lib/live_viewer/nanji_20260522_001.png', '.'),
         ('settings', 'settings'),
     ],
     hiddenimports=[
