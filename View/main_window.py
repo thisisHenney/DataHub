@@ -7,11 +7,50 @@ import sys
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from PySide6.QtCore import QTimer, QPoint, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QTimer, QPoint, Qt, QThread, Signal
+from PySide6.QtGui import QGuiApplication, QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QLabel, QPushButton, QMessageBox
 from Lib.File import make_dir, FileMergingThread, FileWriterThread, get_writer_queue_size
 from View.main_window_ui import Ui_MainWindow
+
+
+class _ClearDataThread(QThread):
+    """received_data 폴더의 모든 파일을 비동기로 삭제."""
+    progress = Signal(int, int)  # (current, total)
+    finished_with_stats = Signal(int, int)  # (deleted, total_size)
+
+    def __init__(self, data_path, parent=None):
+        super().__init__(parent)
+        self._data_path = data_path
+
+    def run(self):
+        all_files = []
+        for root, dirs, files in os.walk(self._data_path):
+            for f in files:
+                all_files.append(os.path.join(root, f))
+
+        total = len(all_files)
+        total_size = 0
+        for f in all_files:
+            try:
+                total_size += os.path.getsize(f)
+            except OSError:
+                pass
+
+        deleted = 0
+        last_emit = 0
+        for i, filepath in enumerate(all_files):
+            try:
+                os.remove(filepath)
+                deleted += 1
+            except Exception:
+                pass
+            # UI 갱신 부하 줄이기 위해 일정 간격으로만 emit
+            if i - last_emit >= 50 or i + 1 == total:
+                self.progress.emit(i + 1, max(total, 1))
+                last_emit = i
+
+        self.finished_with_stats.emit(deleted, total_size)
 
 from View.Clients.client_pintel import ClientPintel
 from View.Clients.client_vueron_01 import ClientVueron01
@@ -57,7 +96,7 @@ class MainWindow(QMainWindow):
             FileMergingThread(self, self.vtk_data_dict_pintel,
                               self.vtk_data_dict_keti,
                               self.vtk_data_dict_vueron,
-                              0, 0,
+                              self.target_time, 0,
                               self.app_info,
                               self.pintel_lock, self.keti_lock, self.vueron_lock)
             for i in range(self.num_merge_threads)]
@@ -80,25 +119,31 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f'DataHub-v1.2-[{self.app_info.data_path}]')
 
     def make_file_merging_thread(self):
+        # target_time을 0.2초 grid로 정렬하여 jitter 흡수
         now = datetime.now()
+        rounded_seconds = round(now.timestamp() / 0.2) * 0.2
+        self.target_time = datetime.fromtimestamp(rounded_seconds)
 
-        self.target_time = now
+        # idle한 머지 스레드를 찾아서 할당 (한 스레드가 hang해도 다른 스레드 사용 가능)
+        n = len(self.merging_thread_list)
+        chosen = None
+        for offset in range(n):
+            idx = (self.count_thread + offset) % n
+            mt = self.merging_thread_list[idx]
+            if not mt.isRunning():
+                chosen = (idx, mt)
+                break
+        if chosen is None:
+            return  # 모든 머지 스레드가 바쁨
 
-        merging_thread = self.merging_thread_list[self.count_thread]
-        if merging_thread.isRunning():
-            return
-
+        idx, merging_thread = chosen
         merging_thread._stopped = False
         merging_thread.target_time = self.target_time
         merging_thread.start()
 
-        self.count_thread += 1
-        if self.count_thread == len(self.merging_thread_list):
-            self.count_thread = 0
+        self.count_thread = (idx + 1) % n
 
     def _initialize(self):
-        self.closeEvent = self.close_window
-
         self.ui.pushButton_connect_all.clicked.connect(self.clicked_connect_all)
         self.ui.pushButton_disconnect_all.clicked.connect(self.clicked_disconnect_all)
 
@@ -175,7 +220,7 @@ class MainWindow(QMainWindow):
         self.set_window_center()
         # self.showMaximized()
 
-    def close_window(self, e):
+    def closeEvent(self, e: QCloseEvent):
         reply = QMessageBox.question(
             self, 'Exit',
             'Are you sure you want to quit?',
@@ -186,8 +231,13 @@ class MainWindow(QMainWindow):
         else:
             e.ignore()
 
+    # 하위 호환: 기존 외부 코드가 close_window를 호출할 수 있어 alias 유지
+    close_window = closeEvent
+
     def end(self):
         self.timer.stop()
+        if hasattr(self, 'queue_timer'):
+            self.queue_timer.stop()
 
         for mt in self.merging_thread_list:
             mt.stop()
@@ -207,7 +257,11 @@ class MainWindow(QMainWindow):
         for wt in self.writer_thread_list:
             wt.wait(5000)
 
+        if hasattr(self, '_clear_thread') and self._clear_thread is not None:
+            self._clear_thread.wait(2000)
+
     def _setup_merge_info_ui(self):
+        self._clear_thread = None
         from PySide6.QtWidgets import QGridLayout, QFrame
 
         layout = self.ui.groupBox_datahub.layout()
@@ -284,6 +338,9 @@ class MainWindow(QMainWindow):
         self.queue_timer.start(1000)
 
     def _on_clear_data(self):
+        if hasattr(self, '_clear_thread') and self._clear_thread is not None and self._clear_thread.isRunning():
+            return
+
         reply = QMessageBox.question(
             self, 'Clear Data',
             'received_data 내 모든 파일을 삭제하시겠습니까?\n(폴더는 유지됩니다)',
@@ -292,7 +349,6 @@ class MainWindow(QMainWindow):
             return
 
         self.btn_clear.setEnabled(False)
-
         self._set_data_pause(True)
 
         # vtk_data_dict 비우기
@@ -310,41 +366,27 @@ class MainWindow(QMainWindow):
                 for saver in client.savers:
                     saver.stack.clear()
 
-        # 파일 목록 수집
-        data_path = self.app_info.data_path
-        all_files = []
-        for root, dirs, files in os.walk(data_path):
-            for f in files:
-                all_files.append(os.path.join(root, f))
-
-        total = len(all_files)
-        total_size = sum(os.path.getsize(f) for f in all_files)
-        self.progressBar_clear.setRange(0, max(total, 1))
+        self.progressBar_clear.setRange(0, 1)
         self.progressBar_clear.setValue(0)
         self.progressBar_clear.setVisible(True)
 
-        # 파일 삭제 + 프로그레스바 업데이트
-        deleted = 0
-        from PySide6.QtCore import QCoreApplication
-        for i, filepath in enumerate(all_files):
-            try:
-                os.remove(filepath)
-                deleted += 1
-            except Exception:
-                pass
-            self.progressBar_clear.setValue(i + 1)
-            if (i + 1) % 50 == 0:
-                QCoreApplication.processEvents()  # UI 갱신
+        self._clear_thread = _ClearDataThread(self.app_info.data_path, self)
+        self._clear_thread.progress.connect(self._on_clear_progress)
+        self._clear_thread.finished_with_stats.connect(self._on_clear_finished)
+        self._clear_thread.finished.connect(self._clear_thread.deleteLater)
+        self._clear_thread.start()
 
-        self.progressBar_clear.setValue(total)
-        QCoreApplication.processEvents()
+    def _on_clear_progress(self, current, total):
+        if self.progressBar_clear.maximum() != total:
+            self.progressBar_clear.setRange(0, total)
+        self.progressBar_clear.setValue(current)
 
-        # 수신 재개
-        self._set_data_pause(False)
-
+    def _on_clear_finished(self, deleted, total_size):
         self.progressBar_clear.setVisible(False)
         self.btn_clear.setEnabled(True)
-        self.log(f'[Clear] {deleted} files ({self._format_size(total_size)}) deleted from {data_path}')
+        self._set_data_pause(False)
+        self.log(f'[Clear] {deleted} files ({self._format_size(total_size)}) deleted from {self.app_info.data_path}')
+        self._clear_thread = None
 
     @staticmethod
     def _format_size(size_bytes):

@@ -230,9 +230,10 @@ class VtkJsonConverter:
             if np_arr3.shape[0] == 0 or np_arr3.shape[1] == 0:
                 continue
 
-            if j0 < 0:
+            # 실제 슬라이스가 j0+1:j1+1, i0:i1 이므로 가드도 그 기준으로 일치시킴
+            if j0 + 1 < 0:
                 continue
-            if j1 > sum_num_data.shape[0]:
+            if j1 + 1 > sum_num_data.shape[0]:
                 continue
             if i0 < 0:
                 continue
@@ -520,11 +521,14 @@ class VtkJsonConverter:
     def _load_array_from_json(self, reader):
         if self.company == CompanyType.Pintel:
             data_list = reader.get('count_data')
-            self.array = np.array(data_list)
+            if not data_list:
+                self.array = np.empty((0, 5))
+            else:
+                self.array = np.array(data_list)
 
         elif self.company == CompanyType.Vueron:
             people_dict_parent = reader.get('payload.clientFrames[0]')
-            if 'vObjects' not in people_dict_parent:
+            if people_dict_parent is None or 'vObjects' not in people_dict_parent:
                 raise FileNotFoundError('no people data in Vueron')
             people_dict_list = people_dict_parent['vObjects']
             people_array = []
@@ -534,7 +538,10 @@ class VtkJsonConverter:
                                person_dict['velocityX'], person_dict['velocityY'],
                                person_dict['id'], person_dict['age']]
                 people_array.append(person_list)
-            self.array = np.array(people_array)
+            if not people_array:
+                self.array = np.empty((0, 6))
+            else:
+                self.array = np.array(people_array)
 
         elif self.company == CompanyType.KETI:
             # sensor_list = np.array(reader.get('result'))
@@ -579,15 +586,18 @@ class VtkJsonConverter:
 
                 arrays.append(labeled_array)
 
-            max_rows = max(arr.shape[0] for arr in arrays)
-            cols = arrays[0].shape[1]
+            if not arrays:
+                self.array = np.empty((0, 0, 3))
+            else:
+                max_rows = max(arr.shape[0] for arr in arrays)
+                cols = arrays[0].shape[1]
 
-            padded = np.array([
-                np.vstack([arr, np.full((max_rows - arr.shape[0], cols), np.nan)])
-                for arr in arrays
-            ])
+                padded = np.array([
+                    np.vstack([arr, np.full((max_rows - arr.shape[0], cols), np.nan)])
+                    for arr in arrays
+                ])
 
-            self.array = padded
+                self.array = padded
         return self.array
 
     def _make_vtk_from_pintel(self):

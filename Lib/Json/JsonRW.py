@@ -10,6 +10,13 @@ SPLIT_CHAR = '.'
 
 
 class JsonRW:
+    """
+    JSON read/write helper.
+
+    Thread-safety invariant:
+      `load()` 이후에는 `_buffer`를 mutate하지 말 것. saver와 writer가 동일
+      JsonRW를 read-only로 공유하는 경우가 있어 mutation 시 race condition 발생.
+    """
     def __init__(self):
         self._file = ''
         self._buffer = {}
@@ -24,6 +31,9 @@ class JsonRW:
 
     def get_json_data(self):
         return f'"{self._buffer}"'
+
+    def set_buffer(self, data):
+        self._buffer = data
 
     def set_split_char(self, char=SPLIT_CHAR):
         self._split_char = char
@@ -62,13 +72,35 @@ class JsonRW:
         if file:
             self._file = Path(file)
 
-        with open(self._file, 'w', encoding='utf-8') as f:
-            json.dump(self._buffer, f, ensure_ascii=False, indent=indent)
+        target = Path(self._file)
+        tmp = target.with_suffix(target.suffix + '.tmp')
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(self._buffer, f, ensure_ascii=False, indent=indent)
+            os.replace(tmp, target)
+        except Exception:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+            raise
 
     def save_compressed_json(self, file: Path):
-        self._file = file
-        with gzip.open(self._file.with_suffix('.json.gz'), 'wt', encoding='utf-8', compresslevel=1) as f:
-            json.dump(self._buffer, f, ensure_ascii=False, indent=None)
+        target = Path(file).with_suffix('.json.gz')
+        tmp = target.with_suffix(target.suffix + '.tmp')
+        try:
+            with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=1) as f:
+                json.dump(self._buffer, f, ensure_ascii=False, indent=None)
+            os.replace(tmp, target)
+            self._file = target
+        except Exception:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+            raise
 
     def load(self, json_data=""):
         try:

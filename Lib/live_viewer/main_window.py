@@ -169,7 +169,9 @@ _REFRESH_OPTIONS = [
 ]
 
 
-_WRITE_GUARD_SEC = 0.15  # 이 시간보다 최근에 수정된 파일은 아직 쓰는 중일 수 있어 건너뜀
+_WRITE_GUARD_SEC = 0.5  # 이 시간보다 최근에 수정된 파일은 아직 쓰는 중일 수 있어 건너뜀
+                        # NTFS 시간 정확도(~100ms) + writer 처리 시간을 고려해 여유있게 설정.
+                        # writer 측 atomic rename(.tmp -> .vtk)와 조합되어 손상 파일 회피.
 
 
 def _scan_folder(folder, sensors):
@@ -295,7 +297,7 @@ class MainWindow(QMainWindow):
         self.init_vtk_actor()
         self._build_tree_panel()
 
-        self.timer = QTimer()
+        self.timer = QTimer(self)
         self._refresh_interval = 4
         self.time = self._refresh_interval
         self.timer.setInterval(1000)
@@ -388,47 +390,46 @@ class MainWindow(QMainWindow):
             self.actor_dict[f'Vueron {i}'] = actor
 
         # KETI
-        for i in [0]:
-            reader = vtkDataSetReader()
-            reader.SetFileName('')
-            self.reader_dict['KETI'] = reader
+        reader = vtkDataSetReader()
+        reader.SetFileName('')
+        self.reader_dict['KETI'] = reader
 
-            ths = vtkThreshold()
-            ths.SetInputConnection(reader.GetOutputPort())
-            ths.SetThresholdFunction(ths.THRESHOLD_BETWEEN)
-            ths.SetLowerThreshold(0.1)
-            ths.SetUpperThreshold(20)
-            ths.SetInputArrayToProcess(0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "density")
+        ths = vtkThreshold()
+        ths.SetInputConnection(reader.GetOutputPort())
+        ths.SetThresholdFunction(ths.THRESHOLD_BETWEEN)
+        ths.SetLowerThreshold(0.1)
+        ths.SetUpperThreshold(20)
+        ths.SetInputArrayToProcess(0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "density")
 
-            # mapper = vtkCompositePolyDataMapper()
-            mapper = vtkDataSetMapper()
-            mapper.SetInputConnection(ths.GetOutputPort())
-            mapper.ScalarVisibilityOn()
+        # mapper = vtkCompositePolyDataMapper()
+        mapper = vtkDataSetMapper()
+        mapper.SetInputConnection(ths.GetOutputPort())
+        mapper.ScalarVisibilityOn()
 
-            mapper.SetScalarModeToUseCellFieldData()
-            mapper.SelectColorArray('density')
-            mapper.SetColorModeToMapScalars()
-            mapper.SetScalarRange(0, 2)
+        mapper.SetScalarModeToUseCellFieldData()
+        mapper.SelectColorArray('density')
+        mapper.SetColorModeToMapScalars()
+        mapper.SetScalarRange(0, 2)
 
-            lut = vtkLookupTable()
-            lut.SetNumberOfTableValues(64)
-            lut.Build()
+        lut = vtkLookupTable()
+        lut.SetNumberOfTableValues(64)
+        lut.Build()
 
-            ctf = vtkColorTransferFunction()
-            ctf.SetColorSpaceToHSV()
-            ctf.AddRGBPoint(0.0, 1.0, 1.0, 1.0)
-            ctf.AddRGBPoint(1.0, 0.0, 0.0, 0.0)
-            mapper.SetLookupTable(lut)
+        ctf = vtkColorTransferFunction()
+        ctf.SetColorSpaceToHSV()
+        ctf.AddRGBPoint(0.0, 1.0, 1.0, 1.0)
+        ctf.AddRGBPoint(1.0, 0.0, 0.0, 0.0)
+        mapper.SetLookupTable(lut)
 
-            for i in range(64):
-                t = 300.0 + 100.0 * (i / 64.0)
-                r, g, b = ctf.GetColor((t - 300.0) / 100.0)
-                lut.SetTableValue(i, r, g, b, 1.0)
+        for j in range(64):
+            t = 300.0 + 100.0 * (j / 64.0)
+            r, g, b = ctf.GetColor((t - 300.0) / 100.0)
+            lut.SetTableValue(j, r, g, b, 1.0)
 
-            actor = vtkActor()
-            actor.SetMapper(mapper)
-            actor.SetPosition(-944860, -1951930, 1)
-            self.actor_dict['KETI'] = actor
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.SetPosition(-944860, -1951930, 1)
+        self.actor_dict['KETI'] = actor
 
         # Union
         for i, field in [(1, 'density'), (2, 'pintel_density'), (3, 'keti_density'), (4, 'vueron_density')]:
@@ -694,12 +695,13 @@ class MainWindow(QMainWindow):
         self.view_dock.refresh()
 
     def button_clicked(self):
-        self.time = self._refresh_interval
+        self.time = self._refresh_interval if self._refresh_interval > 0 else 0
         self.read_latest_file()
 
     def time_goes_on(self):
         if self._refresh_interval == 0:
             self._ui.pushButton.setText('Refresh')
+            self.time = 0
             return
         if self.time > 60:
             self._ui.pushButton.setText(f'refresh in {self.time // 60}m {self.time % 60}s')
@@ -755,6 +757,7 @@ class MainWindow(QMainWindow):
         self._enabled_items = enabled_items
         self._scan_thread = _FileScanThread(tasks, self)
         self._scan_thread.scan_done.connect(self._on_scan_complete)
+        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
         self._scan_thread.start()
 
     def _on_scan_complete(self, results):
@@ -822,6 +825,13 @@ class MainWindow(QMainWindow):
         lut.SetBelowRangeColor(0.0, 0.0, 0.0, 0.0)
         lut.UseBelowRangeColorOn()
         return lut
+
+    def closeEvent(self, event):
+        if self.timer is not None:
+            self.timer.stop()
+        if self._scan_thread is not None and self._scan_thread.isRunning():
+            self._scan_thread.wait(2000)
+        super().closeEvent(event)
 
 
 def run():

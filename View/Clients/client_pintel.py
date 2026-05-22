@@ -156,32 +156,45 @@ class ClientPintel(MqttWidget):
     def on_message_task_by_topic_camera(self, topic_data):
         json_data = JsonRW()
         result = json_data.load(topic_data)
-        if result:
-            timestamp_path = 'common[4]'
-            timestamp_data = str(json_data.get(timestamp_path))
+        if not result:
+            self.parent.log('PINTEL >> Invalid Json Data')
+            log_path = Path(f'{self.app_info.app_path}/Data/Error/pintel/error_pintel.log')
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if isinstance(topic_data, (bytes, bytearray)):
+                    data_str = topic_data.decode('utf-8', errors='replace')
+                else:
+                    data_str = str(topic_data)
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f'[{datetime.now().isoformat()}] {data_str}\n---\n')
+            except Exception:
+                pass
+            return
+
+        timestamp_data = json_data.get('common[4]')
+        id_list = json_data.get('common')
+        if timestamp_data is None or not id_list or len(id_list) < 2:
+            self.parent.log('PINTEL >> Missing common/timestamp fields')
+            return
+
+        try:
+            timestamp_data = str(timestamp_data)
             timestamp = int(timestamp_data[:-3])
             ms = timestamp_data[-3:]
             dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
             timestamp_filename = dt.strftime("%Y%m%d_%H%M%S")+ms
-
-            id_path = 'common'
-            id_list = json_data.get(id_path)
             id_data = f'{int(id_list[0]):02d}{int(id_list[1]):02d}'
+        except (ValueError, TypeError, IndexError):
+            self.parent.log('PINTEL >> Invalid timestamp/id format')
+            return
 
-            filename = f"{id_data}_{timestamp_filename}"
+        filename = f"{id_data}_{timestamp_filename}"
 
-            saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.pintel_path, filename, json_data))
-            saver.notify()
-            self.count_thread += 1
-            if self.count_thread == self.num_thread:
-                self.count_thread = 0
-        else:
-            self.parent.log('PINTEL >> Invalid Json Data')
-            log_path = Path(f'{self.app_info.app_path}/Data/Error/pintel/error_pintel.log')
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(topic_data)
+        idx = self.count_thread % self.num_thread
+        self.count_thread = (idx + 1) % self.num_thread
+        saver = self.savers[idx]
+        saver.stack.append((self.app_info.pintel_path, filename, json_data))
+        saver.notify()
 
     def on_message_task_by_topic_merged(self, topic_data):
         ...

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf8 -*-
+import traceback
 from collections import deque
 from datetime import datetime, timedelta
 import glob
@@ -12,6 +13,7 @@ import json
 from pathlib import Path
 import numpy as np
 
+import vtk
 from vtkmodules.vtkCommonDataModel import vtkImageData, vtkPolyData
 from vtkmodules.vtkIOLegacy import vtkDataSetReader
 
@@ -22,10 +24,22 @@ from Lib.Converter.vtk_json_converter import VtkJsonConverter, CompanyType
 SEND_PINTEL_MERGED = 'PVX-V30/PA-7F000001/POT/CROWD/CROWD_MERGED'
 SEND_KETI_CONGESTION = 'crowd_congestion'
 
+_DAY_MILLI_SEC = 86_400_000
 
 _writer_queue = deque()
 _writer_event = threading.Event()
 _writer_lock = threading.Lock()
+
+_on_point_data_lock = threading.Lock()
+
+
+def _deep_copy_vtk(data):
+    """vtk 객체를 thread-safe하게 분리. None이면 None 반환."""
+    if data is None:
+        return None
+    copy = data.NewInstance()
+    copy.DeepCopy(data)
+    return copy
 
 
 class FileWriterThread(QThread):
@@ -55,17 +69,48 @@ class FileWriterThread(QThread):
                 elif kind == 'json':
                     payload.save(path)
                 elif kind == 'vtk':
+                    tmp_path = str(Path(path).absolute()) + '.tmp'
+                    writer = vtkDataSetWriter()
+                    writer.SetFileName(tmp_path)
+                    writer.SetInputData(payload)
+                    writer.SetFileTypeToBinary()
+                    writer.Write()
+                    try:
+                        os.replace(tmp_path, str(Path(path).absolute()))
+                    except OSError:
+                        try:
+                            os.remove(tmp_path)
+                        except OSError:
+                            pass
+                        raise
+
+                if len(_writer_queue) >= 50:
+                    print(f'[Writer] queue length {len(_writer_queue)}')
+
+            except Exception:
+                print("[Writer Notice]:")
+                traceback.print_exc()
+
+        # stop 후 남은 큐를 best-effort로 flush
+        while True:
+            with _writer_lock:
+                item = _writer_queue.popleft() if _writer_queue else None
+            if item is None:
+                break
+            try:
+                kind, path, payload = item
+                if kind == 'json_compressed':
+                    payload.save_compressed_json(path)
+                elif kind == 'json':
+                    payload.save(path)
+                elif kind == 'vtk':
                     writer = vtkDataSetWriter()
                     writer.SetFileName(str(Path(path).absolute()))
                     writer.SetInputData(payload)
                     writer.SetFileTypeToBinary()
                     writer.Write()
-
-                if len(_writer_queue) >= 50:
-                    print(f'[Writer] queue length {len(_writer_queue)}')
-
-            except Exception as e:
-                print("[Writer Notice]: " + str(e))
+            except Exception:
+                traceback.print_exc()
 
 
 def _enqueue_write(kind, path, payload):
@@ -126,19 +171,41 @@ class FileSaverThread(QThread):
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
 
-                    _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_result)
+                    # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
+                    vtk_for_write = _deep_copy_vtk(vtk_result)
+                    _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_for_write)
                     if len(self.stack) >= 10:
                         print(self.CompanyType.name, "stack length", len(self.stack))
                 else:
                     self._event.wait(timeout=0.5)
                     self._event.clear()
 
-            except Exception as e:
-                print("[Notice]: " + str(e))
+            except Exception:
+                print("[Saver Notice]:")
+                traceback.print_exc()
+
+        # stop 후 남은 stack은 buffer만 빠르게 write queue로 넘김 (vtk 변환은 생략)
+        while self.stack:
+            try:
+                filepath, filename, json_data = self.stack.popleft()
+                if isinstance(json_data, (str, bytes, bytearray)):
+                    message = json_data
+                    json_data = JsonRW()
+                    if not json_data.load(message):
+                        continue
+                if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
+                    _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
+                else:
+                    _enqueue_write('json', filepath / (filename + '.json'), json_data)
+            except Exception:
+                traceback.print_exc()
 
 
 class FileMergingThread(QThread):
     merge_info = Signal(str)  # merge 상태 정보를 UI로 전달
+
+    _base_grid_cache = None
+    _base_grid_cache_lock = threading.Lock()
 
     def __init__(self, parent, vtk_data_dict_pintel: dict[str, vtkImageData],
                  vtk_data_dict_keti: dict[str, vtkPolyData],
@@ -158,7 +225,8 @@ class FileMergingThread(QThread):
         self.keti_lock = keti_lock or threading.Lock()
         self.vueron_lock = vueron_lock or threading.Lock()
 
-        self.target_time = target_time
+        # target_time이 datetime 이외 값으로 들어와도 run 진입 시 검사함
+        self.target_time = target_time if isinstance(target_time, datetime) else datetime.now()
         self.chunk_size = chunk_size
         self.merging_time = 2.0
 
@@ -173,7 +241,22 @@ class FileMergingThread(QThread):
     def run(self):
         if self._stopped:
             return
-        self.run_merge()
+        if not isinstance(self.target_time, datetime):
+            self.target_time = datetime.now()
+        try:
+            self.run_merge()
+        except Exception:
+            print("[Merge Notice]:")
+            traceback.print_exc()
+
+    def _load_base_grid(self):
+        with FileMergingThread._base_grid_cache_lock:
+            if FileMergingThread._base_grid_cache is None:
+                reader = vtkDataSetReader()
+                reader.SetFileName(str(self.app_info.app_path / 'Lib/Converter/grid.vtk'))
+                reader.Update()
+                FileMergingThread._base_grid_cache = reader.GetOutput()
+            return FileMergingThread._base_grid_cache
 
     def run_merge(self, merge_limit_milli_sec=60000):
         pintel_data_list = []
@@ -193,8 +276,11 @@ class FileMergingThread(QThread):
         keti_used_key = None
         vueron_used_keys = set()
 
-        if pintel_filename_list:
-            arr = np.array([p.split('_') for p in pintel_filename_list], dtype=int)
+        if self._stopped:
+            return
+
+        arr = self._safe_parse_filenames(pintel_filename_list)
+        if arr is not None:
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
 
@@ -220,8 +306,11 @@ class FileMergingThread(QThread):
                     for key in keys_to_delete:
                         self.vtk_data_dict_pintel.pop(key, None)
 
-        if keti_filename_list:
-            arr = np.array([p.split('_') for p in keti_filename_list], dtype=int)
+        if self._stopped:
+            return
+
+        arr = self._safe_parse_filenames(keti_filename_list)
+        if arr is not None:
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
             idxs = np.where(dt_array < merge_limit_milli_sec)[0]
@@ -239,8 +328,11 @@ class FileMergingThread(QThread):
                     for key in keys_to_delete:
                         self.vtk_data_dict_keti.pop(key, None)
 
-        if vueron_filename_list:
-            arr = np.array([p.split('_') for p in vueron_filename_list], dtype=int)
+        if self._stopped:
+            return
+
+        arr = self._safe_parse_filenames(vueron_filename_list)
+        if arr is not None:
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
 
@@ -266,6 +358,9 @@ class FileMergingThread(QThread):
                     for key in keys_to_delete:
                         self.vtk_data_dict_vueron.pop(key, None)
 
+        if self._stopped:
+            return
+
         has_pintel = len(pintel_data_list) > 0
         has_keti = keti_data is not None
         has_vueron = len(vueron_data_list) > 0
@@ -273,10 +368,7 @@ class FileMergingThread(QThread):
         if not has_pintel and not has_keti and not has_vueron:
             return
 
-        reader = vtkDataSetReader()
-        reader.SetFileName(str(self.app_info.app_path /'Lib/Converter/grid.vtk'))
-        reader.Update()
-        base_grid = reader.GetOutput()
+        base_grid = self._load_base_grid()
         merged_grid = self.converter.merge_vtk_data_in_grid(
             base_grid, pintel_data=pintel_data_list,
             vueron_data=vueron_data_list,
@@ -297,30 +389,51 @@ class FileMergingThread(QThread):
         self.merge_info.emit(info)
         dict_for_json = self.converter.make_json_dict_for_keti(merged_timestamp)
         json_data = JsonRW()
-        json_data._buffer = dict_for_json
+        json_data.set_buffer(dict_for_json)
         json_data.save_compressed_json(self.app_info.keti_path/f'Send/{merged_filename}.json')
         self.converter.write_vtk_file(self.app_info.keti_path/f'Send/VTK/{merged_filename}.vtk')
 
+        # 직렬화는 한 번만 — get_buffer()는 json.dumps()를 매번 새로 수행하므로 변수에 캐시
+        json_buffer = json_data.get_buffer()
+
         # KETI로 전달할 데이터
-        self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_data.get_buffer())
+        self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_buffer)
 
         # LIMES에 전달할 데이터(PINTEL mqtt 포트 이용)
         self.count_limes += 1
-        self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_data.get_buffer())
+        self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_buffer)
 
-        # [8eight] Binary 파일 생성
-        if self.parent.app_info.on_point_data == 0:
-            self.parent.app_info.on_point_data = 1
-            self.converter.merge_vtk_data_in_points(
-                base_grid, pintel_data=pintel_data_list,
-                vueron_data=vueron_data_list,
-                keti_data=keti_data,
-                merged_grid=merged_grid)
-            if self.converter.array.shape[0] > 0:
-                point_file_name = self.app_info.e8ight_path/f'Send/{merged_filename}.e8b'
-                self.converter.write_binary_file_for_e8(point_file_name)
+        # [8eight] Binary 파일 생성 (여러 merge 스레드 동시 진입 방지)
+        should_generate_point = False
+        with _on_point_data_lock:
+            if self.parent.app_info.on_point_data == 0:
+                self.parent.app_info.on_point_data = 1
+                should_generate_point = True
 
-            self.parent.app_info.on_point_data = 2
+        if should_generate_point:
+            try:
+                self.converter.merge_vtk_data_in_points(
+                    base_grid, pintel_data=pintel_data_list,
+                    vueron_data=vueron_data_list,
+                    keti_data=keti_data,
+                    merged_grid=merged_grid)
+                if self.converter.array.shape[0] > 0:
+                    point_file_name = self.app_info.e8ight_path/f'Send/{merged_filename}.e8b'
+                    self.converter.write_binary_file_for_e8(point_file_name)
+            finally:
+                self.parent.app_info.on_point_data = 2
+
+    def _safe_parse_filenames(self, names):
+        """filename 리스트를 (id, date, time) int 배열로 안전 변환. 실패 시 None."""
+        if not names:
+            return None
+        try:
+            arr = np.array([n.split('_') for n in names], dtype=int)
+        except (ValueError, TypeError):
+            return None
+        if arr.ndim != 2 or arr.shape[1] < 3:
+            return None
+        return arr
 
     def timestamp_to_dt(self, int_time_arr):
         times = int_time_arr
@@ -328,12 +441,14 @@ class FileMergingThread(QThread):
         minute = (times // 100000) % 100
         m_seconds = times % 100000
         total_m_seconds = hours * 3600000 + minute * 60000 + m_seconds
-        self.target_time: datetime
         target_m_seconds = (self.target_time.hour * 3600000
                             + self.target_time.minute * 60000
                             + self.target_time.second * 1000
                             + self.target_time.microsecond // 1000)
         dt_array = np.abs(total_m_seconds - target_m_seconds)
+        # 자정 경계 처리: 12시간 이상 차이면 day-wrap으로 간주하여 보정
+        wrap_mask = dt_array > (_DAY_MILLI_SEC // 2)
+        dt_array = np.where(wrap_mask, _DAY_MILLI_SEC - dt_array, dt_array)
         return dt_array
 
 def to_absolute_path(path_str: str) -> Path:

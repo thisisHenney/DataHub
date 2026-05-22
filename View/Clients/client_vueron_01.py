@@ -136,31 +136,39 @@ class ClientVueron01(WebSocketWidget):
 
         json_data = JsonRW()
         result = json_data.load(message)
-        if result:
-            time_path = 'trID'
-            timestamp_data = json_data.get(time_path)
-
-            dt = datetime.strptime(timestamp_data, "%Y%m%d%H%M%S%f")
-            dt_korean = dt + timedelta(hours=9)
-
-            id_path = 'payload.areaID'
-            id_data = json_data.get(id_path)
-
-            filename = (f"{id_data:04d}_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
-
-            saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.vueron_01_path, filename, json_data))
-            saver.notify()
-            self.count_thread += 1
-            if self.count_thread == self.num_thread:
-                self.count_thread = 0
-
-        else:
+        if not result:
             self.parent.log('Vueron_01 >> Invalid Json Data')
             log_path = Path(f'{self.app_info.app_path}/Data/Error/vueron/error_vueron_01.log')
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(message)
+            try:
+                if isinstance(message, (bytes, bytearray)):
+                    data_str = message.decode('utf-8', errors='replace')
+                else:
+                    data_str = str(message)
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f'[{datetime.now().isoformat()}] {data_str}\n---\n')
+            except Exception:
+                pass
+            return
+
+        timestamp_data = json_data.get('trID')
+        id_data = json_data.get('payload.areaID')
+        if not timestamp_data or id_data is None:
+            self.parent.log('Vueron_01 >> Missing trID/areaID')
+            return
+        try:
+            dt = datetime.strptime(timestamp_data, "%Y%m%d%H%M%S%f")
+            dt_korean = dt + timedelta(hours=9)
+            filename = (f"{id_data:04d}_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
+        except (ValueError, TypeError):
+            self.parent.log('Vueron_01 >> Invalid trID format')
+            return
+
+        idx = self.count_thread % self.num_thread
+        self.count_thread = (idx + 1) % self.num_thread
+        saver = self.savers[idx]
+        saver.stack.append((self.app_info.vueron_01_path, filename, json_data))
+        saver.notify()
 
     def send_message_task(self, msg):
         self.set_change_progressbar_tx(True)

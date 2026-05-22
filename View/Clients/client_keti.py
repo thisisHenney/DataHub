@@ -163,26 +163,38 @@ class ClientKeti(MqttWidget):
 
         json_data = JsonRW()
         result = json_data.load(message)
-        if result:
-            time_path = 'result_time'
-            timestamp_data = json_data.get(time_path)   # "2025-05-24 09:15:56.236"
-            dt = datetime.strptime(timestamp_data, "%Y-%m-%d %H:%M:%S.%f")
-            dt_korean = dt + timedelta(hours=9)
-            filename = ( "0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond/1000):03d}')
-
-            saver = self.savers[self.count_thread]
-            saver.stack.append((self.app_info.keti_path, filename, json_data))
-            saver.notify()
-            self.count_thread += 1
-            if self.count_thread == self.num_thread:
-                self.count_thread = 0
-
-        else:
+        if not result:
             self.parent.log('KETI >> Invalid Json Data')
             log_path = Path(f'{self.app_info.app_path}/Data/Error/keti/error_keti.log')
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(topic_data)
+            try:
+                if isinstance(topic_data, (bytes, bytearray)):
+                    data_str = topic_data.decode('utf-8', errors='replace')
+                else:
+                    data_str = str(topic_data)
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f'[{datetime.now().isoformat()}] {data_str}\n---\n')
+            except Exception:
+                pass
+            return
+
+        timestamp_data = json_data.get('result_time')   # "2025-05-24 09:15:56.236"
+        if not timestamp_data:
+            self.parent.log('KETI >> Missing result_time')
+            return
+        try:
+            dt = datetime.strptime(timestamp_data, "%Y-%m-%d %H:%M:%S.%f")
+        except (ValueError, TypeError):
+            self.parent.log('KETI >> Invalid result_time format')
+            return
+        dt_korean = dt + timedelta(hours=9)
+        filename = ( "0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond/1000):03d}')
+
+        idx = self.count_thread % self.num_thread
+        self.count_thread = (idx + 1) % self.num_thread
+        saver = self.savers[idx]
+        saver.stack.append((self.app_info.keti_path, filename, json_data))
+        saver.notify()
 
     def send_message_task(self, topic, msg):
         self.set_change_progressbar_tx(True)
