@@ -1,5 +1,5 @@
 from pathlib import Path
-from time import sleep
+from time import sleep, time as _now_ts
 
 import os
 import sys
@@ -19,6 +19,12 @@ from PySide6.QtGui import QDropEvent, QDragEnterEvent, QPen, QColor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLayout, QHBoxLayout, QWidget,
                                 QTreeWidget, QTreeWidgetItem, QSlider, QAbstractItemView,
                                 QStyledItemDelegate, QStyleOptionViewItem, QLabel, QComboBox)
+
+
+# DataHub가 .vtk 파일을 쓰는 중에 읽으면 발생하는 race condition 에러를 콘솔에서 숨김
+_vtk_null_output = vtk.vtkFileOutputWindow()
+_vtk_null_output.SetFileName(os.devnull)
+vtk.vtkOutputWindow.SetInstance(_vtk_null_output)
 
 
 class GroupSeparatorDelegate(QStyledItemDelegate):
@@ -163,43 +169,77 @@ _REFRESH_OPTIONS = [
 ]
 
 
-def _find_latest_vtk_fast(folder, ids):
-    if not folder.is_dir():
-        return None, 0, 0
+_WRITE_GUARD_SEC = 0.15  # 이 시간보다 최근에 수정된 파일은 아직 쓰는 중일 수 있어 건너뜀
 
-    prefix = f'{ids:04d}_' if ids >= 0 else ''
-    latest_path = None
-    latest_date = 0
-    latest_time = 0
+
+def _scan_folder(folder, sensors):
+    results = {name: (None, 0, 0) for name, _ in sensors}
+    if not folder.is_dir():
+        return results
+
+    prefix_map = {}
+    union_names = []
+    for name, ids in sensors:
+        if ids >= 0:
+            prefix_map[f'{ids:04d}'] = name
+        else:
+            union_names.append(name)
+
+    cutoff = _now_ts() - _WRITE_GUARD_SEC
 
     try:
         with os.scandir(folder) as it:
             for entry in it:
-                name = entry.name
-                if not name.endswith('.vtk'):
+                fname = entry.name
+                if not fname.endswith('.vtk'):
                     continue
-                if prefix and not name.startswith(prefix):
-                    continue
-                parts = name[:-4].split('_')
-                try:
-                    if ids >= 0:
-                        if len(parts) < 3:
-                            continue
-                        fdate, ftime = int(parts[1]), int(parts[2])
-                    else:
-                        if len(parts) < 2:
-                            continue
-                        fdate, ftime = int(parts[0]), int(parts[1])
-                    if fdate > latest_date or (fdate == latest_date and ftime > latest_time):
-                        latest_date = fdate
-                        latest_time = ftime
-                        latest_path = entry.path
-                except (ValueError, IndexError):
-                    continue
-    except OSError:
-        return None, 0, 0
+                stem = fname[:-4]
 
-    return latest_path, latest_date, latest_time
+                if prefix_map and len(stem) > 4 and stem[4] == '_':
+                    name = prefix_map.get(stem[:4])
+                    if name is not None:
+                        parts = stem.split('_', 2)
+                        if len(parts) == 3:
+                            try:
+                                fdate, ftime = int(parts[1]), int(parts[2])
+                                _, cur_date, cur_time = results[name]
+                                if fdate > cur_date or (fdate == cur_date and ftime > cur_time):
+                                    try:
+                                        if entry.stat().st_mtime > cutoff:
+                                            continue
+                                    except OSError:
+                                        continue
+                                    results[name] = (entry.path, fdate, ftime)
+                            except ValueError:
+                                pass
+                        continue
+
+                if union_names:
+                    parts = stem.split('_', 1)
+                    if len(parts) == 2:
+                        try:
+                            fdate, ftime = int(parts[0]), int(parts[1])
+                            need_update = any(
+                                fdate > results[n][1] or (fdate == results[n][1] and ftime > results[n][2])
+                                for n in union_names
+                            )
+                            if not need_update:
+                                continue
+                            try:
+                                if entry.stat().st_mtime > cutoff:
+                                    continue
+                            except OSError:
+                                continue
+                            for name in union_names:
+                                _, cur_date, cur_time = results[name]
+                                if fdate > cur_date or (fdate == cur_date and ftime > cur_time):
+                                    results[name] = (entry.path, fdate, ftime)
+                        except ValueError:
+                            pass
+    except OSError:
+        pass
+
+    return results
 
 
 class _FileScanThread(QThread):
@@ -210,9 +250,14 @@ class _FileScanThread(QThread):
         self._tasks = tasks  # [(name, folder, ids), ...]
 
     def run(self):
-        results = {}
+        folder_groups = {}
         for name, folder, ids in self._tasks:
-            results[name] = _find_latest_vtk_fast(folder, ids)
+            folder_groups.setdefault(folder, []).append((name, ids))
+
+        results = {}
+        for folder, sensors in folder_groups.items():
+            results.update(_scan_folder(folder, sensors))
+
         self.scan_done.emit(results)
 
 
@@ -440,10 +485,10 @@ class MainWindow(QMainWindow):
 
         groups = [
             ('Grid', ['grid 2', 'grid 10', 'grid 100'], False),
-            ('Pintel', [f'Pintel {i}' for i in range(1, 65)], True),
-            ('KETI', ['KETI'], True),
-            ('Vueron', ['Vueron 1', 'Vueron 2'], True),
-            ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4'], True),
+            ('Pintel', [f'Pintel {i}' for i in range(1, 65)], False),
+            ('KETI', ['KETI'], False),
+            ('Vueron', ['Vueron 1', 'Vueron 2'], False),
+            ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4'], False),
         ]
 
         self._group_items = {}
