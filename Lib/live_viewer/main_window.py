@@ -14,7 +14,7 @@ from vtkmodules.vtkFiltersGeneral import vtkTransformFilter
 from vtkmodules.vtkFiltersGeometry import vtkDataSetSurfaceFilter, vtkGeometryFilter
 from vtkmodules.vtkFiltersParallel import vtkRemoveGhosts
 
-from PySide6.QtCore import QThread, QMimeData, QTimer, Qt, QRect
+from PySide6.QtCore import QThread, QMimeData, QTimer, Qt, QRect, Signal
 from PySide6.QtGui import QDropEvent, QDragEnterEvent, QPen, QColor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLayout, QHBoxLayout, QWidget,
                                 QTreeWidget, QTreeWidgetItem, QSlider, QAbstractItemView,
@@ -163,6 +163,59 @@ _REFRESH_OPTIONS = [
 ]
 
 
+def _find_latest_vtk_fast(folder, ids):
+    if not folder.is_dir():
+        return None, 0, 0
+
+    prefix = f'{ids:04d}_' if ids >= 0 else ''
+    latest_path = None
+    latest_date = 0
+    latest_time = 0
+
+    try:
+        with os.scandir(folder) as it:
+            for entry in it:
+                name = entry.name
+                if not name.endswith('.vtk'):
+                    continue
+                if prefix and not name.startswith(prefix):
+                    continue
+                parts = name[:-4].split('_')
+                try:
+                    if ids >= 0:
+                        if len(parts) < 3:
+                            continue
+                        fdate, ftime = int(parts[1]), int(parts[2])
+                    else:
+                        if len(parts) < 2:
+                            continue
+                        fdate, ftime = int(parts[0]), int(parts[1])
+                    if fdate > latest_date or (fdate == latest_date and ftime > latest_time):
+                        latest_date = fdate
+                        latest_time = ftime
+                        latest_path = entry.path
+                except (ValueError, IndexError):
+                    continue
+    except OSError:
+        return None, 0, 0
+
+    return latest_path, latest_date, latest_time
+
+
+class _FileScanThread(QThread):
+    scan_done = Signal(dict)
+
+    def __init__(self, tasks, parent=None):
+        super().__init__(parent)
+        self._tasks = tasks  # [(name, folder, ids), ...]
+
+    def run(self):
+        results = {}
+        for name, folder, ids in self._tasks:
+            results[name] = _find_latest_vtk_fast(folder, ids)
+        self.scan_done.emit(results)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -203,6 +256,10 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.time_goes_on)
         self.timer.start()
+
+        self._scan_thread = None
+        self._enabled_items = {}
+        self._last_loaded = {}
 
         if getattr(sys, 'frozen', False):
             self._dir_path = sys._MEIPASS
@@ -580,7 +637,7 @@ class MainWindow(QMainWindow):
         else:
             self._ui.pushButton.setText(f'refresh in {self.time} sec')
         self.time -= 1
-        if self.time < 1:
+        if self.time < 0:
             self.time = self._refresh_interval
             self.read_latest_file()
 
@@ -594,41 +651,12 @@ class MainWindow(QMainWindow):
         else:
             self._ui.pushButton.setText(f'refresh in {self._refresh_interval} sec')
 
-    def _find_latest_vtk(self, folder, ids):
-        if not folder.is_dir():
-            return None, None, None
-
-        latest_file = None
-        latest_date = 0
-        latest_time = 0
-
-        for f in folder.iterdir():
-            if not f.suffix == '.vtk':
-                continue
-            parts = f.stem.split('_')
-            try:
-                if ids >= 0:
-                    if len(parts) < 3:
-                        continue
-                    fid, fdate, ftime = int(parts[0]), int(parts[1]), int(parts[2])
-                    if fid != ids:
-                        continue
-                else:
-                    if len(parts) < 2:
-                        continue
-                    fdate, ftime = int(parts[0]), int(parts[1])
-
-                if fdate > latest_date or (fdate == latest_date and ftime > latest_time):
-                    latest_date = fdate
-                    latest_time = ftime
-                    latest_file = f
-            except (ValueError, IndexError):
-                continue
-
-        return latest_file, latest_date, latest_time
-
     def read_latest_file(self):
-        self.tree.blockSignals(True)
+        if self._scan_thread is not None and self._scan_thread.isRunning():
+            return
+
+        tasks = []
+        enabled_items = {}
         for name, item in self._child_items.items():
             if item.checkState(0) == Qt.CheckState.Unchecked:
                 continue
@@ -649,22 +677,45 @@ class MainWindow(QMainWindow):
             else:
                 continue
 
-            latest_file, latest_date, latest_time = self._find_latest_vtk(folder, ids)
-            if latest_file is None:
-                item.setText(0, base_name + ': Not Found')
-                self.view_dock.removeActor(self.actor_dict[base_name])
+            tasks.append((base_name, folder, ids))
+            enabled_items[base_name] = item
+
+        if not tasks:
+            return
+
+        self._enabled_items = enabled_items
+        self._scan_thread = _FileScanThread(tasks, self)
+        self._scan_thread.scan_done.connect(self._on_scan_complete)
+        self._scan_thread.start()
+
+    def _on_scan_complete(self, results):
+        self.tree.blockSignals(True)
+        changed = False
+        for base_name, (latest_path, latest_date, latest_time) in results.items():
+            item = self._enabled_items.get(base_name)
+            if item is None:
                 continue
 
-            self.reader_dict[base_name].SetFileName(str(latest_file))
-            self.reader_dict[base_name].Modified()
-            self.actor_dict[base_name].Modified()
+            if latest_path is None:
+                item.setText(0, base_name + ': Not Found')
+                self.view_dock.removeActor(self.actor_dict[base_name])
+                self._last_loaded.pop(base_name, None)
+                continue
+
+            if self._last_loaded.get(base_name) != latest_path:
+                self.reader_dict[base_name].SetFileName(latest_path)
+                self.reader_dict[base_name].Modified()
+                self.actor_dict[base_name].Modified()
+                self._last_loaded[base_name] = latest_path
+                changed = True
 
             lt = str(latest_time)
             times = lt[:-7]+':'+lt[-7:-5]+':'+lt[-5:-3]+'.'+lt[-3]
             item.setText(0, base_name + ': '+f'{latest_date:08d}'[-4:]+' '+times)
             self.view_dock.addActor(self.actor_dict[base_name])
         self.tree.blockSignals(False)
-        self.view_dock.refresh()
+        if changed:
+            self.view_dock.refresh()
 
     def _make_rainbow_lut(self):
         lut = vtkLookupTable()
