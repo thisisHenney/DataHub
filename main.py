@@ -57,6 +57,7 @@ class Main:
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
+    # 스타일시트 적용 (파일이 있으면 적용, 없으면 기본 테마)
     style_path = Path(os.path.dirname(__file__)) / 'settings' / 'style.qss'
     if style_path.is_file():
         with open(style_path, 'r', encoding='utf-8') as f:

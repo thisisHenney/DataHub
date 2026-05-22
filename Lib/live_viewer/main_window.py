@@ -18,7 +18,7 @@ from PySide6.QtCore import QThread, QMimeData, QTimer, Qt, QRect
 from PySide6.QtGui import QDropEvent, QDragEnterEvent, QPen, QColor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLayout, QHBoxLayout, QWidget,
                                 QTreeWidget, QTreeWidgetItem, QSlider, QAbstractItemView,
-                                QStyledItemDelegate, QStyleOptionViewItem)
+                                QStyledItemDelegate, QStyleOptionViewItem, QLabel, QComboBox)
 
 
 class GroupSeparatorDelegate(QStyledItemDelegate):
@@ -156,6 +156,13 @@ MAP_CONFIG = {
 }
 
 
+_REFRESH_OPTIONS = [
+    ('갱신 안함', 0), ('1초', 1), ('2초', 2), ('3초', 3), ('4초', 4), ('5초', 5),
+    ('10초', 10), ('30초', 30), ('1분', 60), ('2분', 120), ('3분', 180),
+    ('5분', 300), ('10분', 600), ('20분', 1200), ('30분', 1800),
+]
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -168,6 +175,22 @@ class MainWindow(QMainWindow):
 
         self._ui.pushButton.clicked.connect(self.button_clicked)
 
+        self._combo_interval = QComboBox()
+        for text, _ in _REFRESH_OPTIONS:
+            self._combo_interval.addItem(text)
+        self._combo_interval.setCurrentIndex(4)  # 기본값: 4초
+
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        self._ui.verticalLayout.removeWidget(self._ui.pushButton)
+        row_layout.addWidget(self._ui.pushButton)
+        row_layout.addWidget(QLabel('갱신 시간:'))
+        row_layout.addWidget(self._combo_interval)
+        self._ui.verticalLayout.insertWidget(1, row_widget)
+
+        self._combo_interval.currentIndexChanged.connect(self._on_interval_changed)
+
         self.reader_dict: dict[str, vtkDataSetReader] = {}
         self.actor_dict: dict[str, vtkActor] = {}
         self._group_order = []
@@ -175,7 +198,8 @@ class MainWindow(QMainWindow):
         self._build_tree_panel()
 
         self.timer = QTimer()
-        self.time = 4
+        self._refresh_interval = 4
+        self.time = self._refresh_interval
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.time_goes_on)
         self.timer.start()
@@ -544,15 +568,31 @@ class MainWindow(QMainWindow):
         self.view_dock.refresh()
 
     def button_clicked(self):
-        self.time = 4
+        self.time = self._refresh_interval
         self.read_latest_file()
 
     def time_goes_on(self):
+        if self._refresh_interval == 0:
+            self._ui.pushButton.setText('Refresh')
+            return
+        if self.time > 60:
+            self._ui.pushButton.setText(f'refresh in {self.time // 60}m {self.time % 60}s')
+        else:
+            self._ui.pushButton.setText(f'refresh in {self.time} sec')
         self.time -= 1
-        self._ui.pushButton.setText(f'refresh in {self.time} sec')
         if self.time < 1:
-            self.time = 4
+            self.time = self._refresh_interval
             self.read_latest_file()
+
+    def _on_interval_changed(self, index):
+        self._refresh_interval = _REFRESH_OPTIONS[index][1]
+        self.time = self._refresh_interval
+        if self._refresh_interval == 0:
+            self._ui.pushButton.setText('Refresh')
+        elif self._refresh_interval > 60:
+            self._ui.pushButton.setText(f'refresh in {self._refresh_interval // 60}m {self._refresh_interval % 60}s')
+        else:
+            self._ui.pushButton.setText(f'refresh in {self._refresh_interval} sec')
 
     def _find_latest_vtk(self, folder, ids):
         if not folder.is_dir():
