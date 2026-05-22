@@ -170,6 +170,8 @@ class MainWindow(QMainWindow):
         self.client_keti.set_defaults()
         self.client_nextfoam.set_defaults()
 
+        self.ui.checkBox_auto_reconnect.setChecked(True)
+
         self.set_window_center()
         # self.showMaximized()
 

@@ -318,6 +318,23 @@ class MainWindow(QMainWindow):
             self._ui.comboBox_map.addItem(name)
         self._ui.comboBox_map.currentIndexChanged.connect(self._on_map_changed)
 
+        self._map_opacity = 1.0
+        map_opacity_widget = QWidget()
+        map_opacity_layout = QHBoxLayout(map_opacity_widget)
+        map_opacity_layout.setContentsMargins(0, 0, 0, 0)
+        map_opacity_layout.setSpacing(4)
+        _lbl = QLabel('지도 투명도')
+        _lbl.setFixedWidth(60)
+        _lbl.setStyleSheet('font-size: 8pt; color: #888;')
+        self._map_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._map_opacity_slider.setRange(0, 100)
+        self._map_opacity_slider.setValue(100)
+        self._map_opacity_slider.setFixedHeight(16)
+        map_opacity_layout.addWidget(_lbl)
+        map_opacity_layout.addWidget(self._map_opacity_slider)
+        self._ui.verticalLayout.insertWidget(1, map_opacity_widget)
+        self._map_opacity_slider.valueChanged.connect(self._on_map_opacity_changed)
+
     def init_vtk_actor(self):
         # Pintel
         for i in range(1, 65):
@@ -646,7 +663,14 @@ class MainWindow(QMainWindow):
 
         self._map_actor = vtkActor()
         self._map_actor.SetMapper(mapper)
+        self._map_actor.GetProperty().SetOpacity(self._map_opacity)
         self.view_dock.addActor(self._map_actor)
+
+    def _on_map_opacity_changed(self, value):
+        self._map_opacity = value / 100.0
+        if self._map_actor is not None:
+            self._map_actor.GetProperty().SetOpacity(self._map_opacity)
+            self.view_dock.refresh()
 
     def _on_map_changed(self, index):
         if self._map_reader is None:
