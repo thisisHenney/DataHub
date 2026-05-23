@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from PySide6.QtGui import QIntValidator
 
-from Lib.File import make_dir, FileSaverThread
+from Lib.File import make_dir
 from Lib.Json.JsonRW import JsonRW
 from Lib.Network.MQTT import MqttWidget
 

@@ -523,8 +523,8 @@ def to_absolute_path(path_str: str) -> Path:
 
 def is_opened(file_name):
     try:
-        with open(file_name, 'r+') as file:
-            file.close()
+        with open(file_name, 'r+'):
+            pass
         return False
     except IOError:
         return True
@@ -556,7 +556,6 @@ def get_file_size(file_name):
 
 
 def get_file_time(file_name, mode='create'):
-    from datetime import datetime
     get_time = 0
     if mode == 'access':
         get_time = os.stat(file_name).st_atime
