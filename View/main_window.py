@@ -644,7 +644,12 @@ class MainWindow(QMainWindow):
         self.comboBox_keti_send_interval.setFixedHeight(22)
         self.comboBox_keti_send_interval.setStyleSheet('font-size: 8pt;')
         self.comboBox_keti_send_interval.currentIndexChanged.connect(self._on_keti_send_interval_changed)
+
+        from PySide6.QtWidgets import QLabel
+        lbl = QLabel('송신시간', self.ui.groupBox_keti)
+        lbl.setStyleSheet('font-size: 8pt;')
         self.ui.horizontalLayout_menu_keti.insertWidget(0, self.comboBox_keti_send_interval)
+        self.ui.horizontalLayout_menu_keti.insertWidget(0, lbl)
 
     def _on_keti_send_interval_changed(self, index):
         ms = self.comboBox_keti_send_interval.itemData(index)
