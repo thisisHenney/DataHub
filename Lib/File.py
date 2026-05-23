@@ -46,6 +46,7 @@ class FileWriterThread(QThread):
     def __init__(self):
         super().__init__()
         self.is_running = True
+        self._last_warn_time = 0.0
 
     def stop(self):
         self.is_running = False
@@ -84,8 +85,12 @@ class FileWriterThread(QThread):
                             pass
                         raise
 
-                if len(_writer_queue) >= 50:
-                    print(f'[Writer] queue length {len(_writer_queue)}')
+                qlen = len(_writer_queue)
+                if qlen >= 50:
+                    now = time.monotonic()
+                    if now - self._last_warn_time >= 10.0:
+                        print(f'[Writer] queue length {qlen}')
+                        self._last_warn_time = now
 
             except Exception:
                 print("[Writer Notice]:")
@@ -151,6 +156,7 @@ class FileSaverThread(QThread):
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
         self._event = threading.Event()
         self.dual_path_base = None   # None=OFF, Path=ON → received_data/received_data_YYYYMMDD_HHMMSS
+        self._last_warn_time = 0.0
 
     def notify(self):
         self._event.set()
@@ -207,8 +213,12 @@ class FileSaverThread(QThread):
                         except Exception:
                             traceback.print_exc()
 
-                    if len(self.stack) >= 10:
-                        print(self.CompanyType.name, "stack length", len(self.stack))
+                    slen = len(self.stack)
+                    if slen >= 10:
+                        now = time.monotonic()
+                        if now - self._last_warn_time >= 10.0:
+                            print(self.CompanyType.name, "stack length", slen)
+                            self._last_warn_time = now
                 else:
                     self._event.wait(timeout=0.5)
                     self._event.clear()
