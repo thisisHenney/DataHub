@@ -109,7 +109,7 @@ class ClientVueron02(WebSocketWidget):
 
     def _on_timer_reconnect(self):
         curtime = f'{datetime.now().strftime("%Y.%m.%d %H:%M:%S")}'
-        print(f'Vueron2 >> Reconnect at ({curtime})')
+        self.parent.log(f'Vueron2 >> Reconnect at ({curtime})')
         self.connect_to_server()
 
     def on_timer_check_txrx_state_task(self, tx_state, rx_state):

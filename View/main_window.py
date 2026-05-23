@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, QPoint, Qt, QThread, Signal
 from PySide6.QtGui import QGuiApplication, QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QLabel, QPushButton, QMessageBox
-from Lib.File import make_dir, FileMergingThread, FileWriterThread, get_writer_queue_size
+from Lib.File import make_dir, FileMergingThread, FileWriterThread, get_writer_queue_size, clear_writer_queue
 from View.main_window_ui import Ui_MainWindow
 
 
@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.vueron_lock = threading.Lock()
 
         self.is_reconnect = False
+        self._clear_thread = None
 
         self.client_pintel = ClientPintel(self, self.vtk_data_dict_pintel, self.pintel_lock)
         self.client_vueron_01 = ClientVueron01(self, self.vtk_data_dict_vueron, self.vueron_lock)
@@ -231,8 +232,8 @@ class MainWindow(QMainWindow):
         else:
             e.ignore()
 
-    # 하위 호환: 기존 외부 코드가 close_window를 호출할 수 있어 alias 유지
-    close_window = closeEvent
+    def close_window(self):
+        self.close()
 
     def end(self):
         self.timer.stop()
@@ -261,7 +262,6 @@ class MainWindow(QMainWindow):
             self._clear_thread.wait(2000)
 
     def _setup_merge_info_ui(self):
-        self._clear_thread = None
         from PySide6.QtWidgets import QGridLayout, QFrame
 
         layout = self.ui.groupBox_datahub.layout()
@@ -350,6 +350,9 @@ class MainWindow(QMainWindow):
 
         self.btn_clear.setEnabled(False)
         self._set_data_pause(True)
+
+        # saver가 stop 직전에 enqueue한 writer 작업을 비워서 삭제와의 race 방지
+        clear_writer_queue()
 
         # vtk_data_dict 비우기
         with self.pintel_lock:

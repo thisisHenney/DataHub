@@ -104,11 +104,19 @@ class FileWriterThread(QThread):
                 elif kind == 'json':
                     payload.save(path)
                 elif kind == 'vtk':
+                    tmp_path = str(Path(path).absolute()) + '.tmp'
                     writer = vtkDataSetWriter()
-                    writer.SetFileName(str(Path(path).absolute()))
+                    writer.SetFileName(tmp_path)
                     writer.SetInputData(payload)
                     writer.SetFileTypeToBinary()
                     writer.Write()
+                    try:
+                        os.replace(tmp_path, str(Path(path).absolute()))
+                    except OSError:
+                        try:
+                            os.remove(tmp_path)
+                        except OSError:
+                            pass
             except Exception:
                 traceback.print_exc()
 
@@ -122,6 +130,11 @@ def _enqueue_write(kind, path, payload):
 def get_writer_queue_size():
     with _writer_lock:
         return len(_writer_queue)
+
+
+def clear_writer_queue():
+    with _writer_lock:
+        _writer_queue.clear()
 
 
 class FileSaverThread(QThread):
@@ -166,6 +179,8 @@ class FileSaverThread(QThread):
                     valid = self.converter.load_array_from_reader(json_data)
                     if isinstance(valid, str):
                         print(valid)
+                        continue
+                    if self.converter.array.size == 0:
                         continue
                     vtk_result = self.converter.make_vtk()
                     with self.vtk_data_lock:
@@ -232,7 +247,6 @@ class FileMergingThread(QThread):
 
         self.app_info = app_info
 
-        self.count_limes = 0
         self._stopped = False
 
     def stop(self):
@@ -256,7 +270,10 @@ class FileMergingThread(QThread):
                 reader.SetFileName(str(self.app_info.app_path / 'Lib/Converter/grid.vtk'))
                 reader.Update()
                 FileMergingThread._base_grid_cache = reader.GetOutput()
-            return FileMergingThread._base_grid_cache
+            # merge_vtk_data_in_grid mutates the grid in-place, so each thread needs its own copy
+            copy = vtkImageData()
+            copy.DeepCopy(FileMergingThread._base_grid_cache)
+            return copy
 
     def run_merge(self, merge_limit_milli_sec=60000):
         pintel_data_list = []
@@ -400,7 +417,6 @@ class FileMergingThread(QThread):
         self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_buffer)
 
         # LIMES에 전달할 데이터(PINTEL mqtt 포트 이용)
-        self.count_limes += 1
         self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_buffer)
 
         # [8eight] Binary 파일 생성 (여러 merge 스레드 동시 진입 방지)
@@ -421,7 +437,8 @@ class FileMergingThread(QThread):
                     point_file_name = self.app_info.e8ight_path/f'Send/{merged_filename}.e8b'
                     self.converter.write_binary_file_for_e8(point_file_name)
             finally:
-                self.parent.app_info.on_point_data = 2
+                with _on_point_data_lock:
+                    self.parent.app_info.on_point_data = 2
 
     def _safe_parse_filenames(self, names):
         """filename 리스트를 (id, date, time) int 배열로 안전 변환. 실패 시 None."""

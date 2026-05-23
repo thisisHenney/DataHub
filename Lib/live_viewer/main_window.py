@@ -169,7 +169,7 @@ _REFRESH_OPTIONS = [
 ]
 
 
-_WRITE_GUARD_SEC = 0.5  # 이 시간보다 최근에 수정된 파일은 아직 쓰는 중일 수 있어 건너뜀
+_WRITE_GUARD_SEC = 0.3  # 이 시간보다 최근에 수정된 파일은 아직 쓰는 중일 수 있어 건너뜀 (writer atomic rename이라 짧게 OK)
                         # NTFS 시간 정확도(~100ms) + writer 처리 시간을 고려해 여유있게 설정.
                         # writer 측 atomic rename(.tmp -> .vtk)와 조합되어 손상 파일 회피.
 
@@ -757,7 +757,7 @@ class MainWindow(QMainWindow):
         self._enabled_items = enabled_items
         self._scan_thread = _FileScanThread(tasks, self)
         self._scan_thread.scan_done.connect(self._on_scan_complete)
-        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
+        self._scan_thread.finished.connect(self._on_scan_thread_finished)
         self._scan_thread.start()
 
     def _on_scan_complete(self, results):
@@ -826,11 +826,17 @@ class MainWindow(QMainWindow):
         lut.UseBelowRangeColorOn()
         return lut
 
+    def _on_scan_thread_finished(self):
+        self._scan_thread = None
+
     def closeEvent(self, event):
         if self.timer is not None:
             self.timer.stop()
-        if self._scan_thread is not None and self._scan_thread.isRunning():
-            self._scan_thread.wait(2000)
+        if self._scan_thread is not None:
+            try:
+                self._scan_thread.wait(2000)
+            except RuntimeError:
+                pass
         super().closeEvent(event)
 
 
