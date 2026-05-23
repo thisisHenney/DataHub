@@ -30,6 +30,11 @@ _writer_queue = deque()
 _writer_event = threading.Event()
 _writer_lock = threading.Lock()
 
+# writer 큐가 SOFT_CAP을 넘어가면 saver가 잠시 대기 (backpressure)
+# HARD_WAIT_SEC 초과 시엔 데이터 손실 방지를 위해 강제로 enqueue
+_WRITER_QUEUE_SOFT_CAP = 2000
+_WRITER_QUEUE_HARD_WAIT_SEC = 2.0
+
 _on_point_data_lock = threading.Lock()
 
 
@@ -127,6 +132,18 @@ class FileWriterThread(QThread):
 
 
 def _enqueue_write(kind, path, payload):
+    # backpressure: writer가 디스크 I/O로 못 따라잡으면 saver를 잠시 대기시켜
+    # 큐가 무한히 커지는 것을 방지. 단, HARD_WAIT 초과 시엔 데이터 손실 방지를
+    # 위해 강제로 append (writer가 죽었거나 영구히 막혔을 경우 대비).
+    waited = 0.0
+    while waited < _WRITER_QUEUE_HARD_WAIT_SEC:
+        with _writer_lock:
+            if len(_writer_queue) < _WRITER_QUEUE_SOFT_CAP:
+                _writer_queue.append((kind, path, payload))
+                _writer_event.set()
+                return
+        time.sleep(0.05)
+        waited += 0.05
     with _writer_lock:
         _writer_queue.append((kind, path, payload))
     _writer_event.set()
@@ -190,6 +207,9 @@ class FileSaverThread(QThread):
                     if self.converter.array.size == 0:
                         continue
                     vtk_result = self.converter.make_vtk()
+                    # make_vtk() 이후엔 self.array(파싱된 numpy 캐시)는 더 이상 쓰이지 않음.
+                    # 즉시 해제하여 saver 스레드 40개+가 잡고 있는 메모리를 줄임.
+                    self.converter.array = np.array([])
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
 
