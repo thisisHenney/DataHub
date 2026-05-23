@@ -3,7 +3,7 @@
 
 import threading
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIntValidator
 
@@ -181,8 +181,8 @@ class ClientPintel(MqttWidget):
             timestamp_data = str(timestamp_data)
             timestamp = int(timestamp_data[:-3])
             ms = timestamp_data[-3:]
-            # Pintel 장비는 KST 기준 Unix ms를 보내므로 timezone 변환 없이 직접 사용
-            dt_kst = datetime.utcfromtimestamp(timestamp)
+            dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            dt_kst = dt + timedelta(hours=9)
             timestamp_filename = dt_kst.strftime("%Y%m%d_%H%M%S")+ms
             id_data = f'{int(id_list[0]):02d}{int(id_list[1]):02d}'
         except (ValueError, TypeError, IndexError):
