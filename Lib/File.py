@@ -150,6 +150,7 @@ class FileSaverThread(QThread):
         self.vtk_data_dict = vtk_data_dict
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
         self._event = threading.Event()
+        self.dual_path_base = None   # None=OFF, Path=ON → received_data/received_data_YYYYMMDD_HHMMSS
 
     def notify(self):
         self._event.set()
@@ -189,6 +190,23 @@ class FileSaverThread(QThread):
                     # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
                     vtk_for_write = _deep_copy_vtk(vtk_result)
                     _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_for_write)
+
+                    # dual 저장 (동시 저장 버튼 ON 시)
+                    dual = self.dual_path_base
+                    if dual is not None:
+                        try:
+                            dual_filepath = dual / filepath.name
+                            dual_filepath.mkdir(parents=True, exist_ok=True)
+                            (dual_filepath / 'VTK').mkdir(parents=True, exist_ok=True)
+                            if self.CompanyType in (CompanyType.Vueron, CompanyType.Pintel):
+                                _enqueue_write('json_compressed', dual_filepath / (filename + '.json'), json_data)
+                            else:
+                                _enqueue_write('json', dual_filepath / (filename + '.json'), json_data)
+                            vtk_for_dual = _deep_copy_vtk(vtk_result)
+                            _enqueue_write('vtk', dual_filepath / 'VTK' / (filename + '.vtk'), vtk_for_dual)
+                        except Exception:
+                            traceback.print_exc()
+
                     if len(self.stack) >= 10:
                         print(self.CompanyType.name, "stack length", len(self.stack))
                 else:

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*-coding:utf8-*-
 
+import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -51,6 +53,54 @@ class _ClearDataThread(QThread):
                 last_emit = i
 
         self.finished_with_stats.emit(deleted, total_size)
+
+
+class _BackupThread(QThread):
+    """received_data 파일을 사용자 지정 폴더로 비동기 이동 (스냅샷 방식)."""
+    progress = Signal(int, int)                 # (current, total)
+    finished_with_stats = Signal(int, int, str) # (moved, total_size_bytes, dest_dir)
+
+    def __init__(self, data_path: Path, backup_dest: Path, parent=None):
+        super().__init__(parent)
+        self._data_path = data_path
+        self._backup_dest = backup_dest
+
+    def run(self):
+        # 시작 시점 스냅샷 — .tmp(atomic write 중) 제외
+        snapshot = []
+        for root, dirs, files in os.walk(self._data_path):
+            for f in files:
+                if not f.endswith('.tmp'):
+                    snapshot.append(Path(root) / f)
+
+        total = len(snapshot)
+        if total == 0:
+            self.finished_with_stats.emit(0, 0, '')
+            return
+
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest_root = self._backup_dest / f'received_data_{ts}'
+
+        moved, total_size, last_emit = 0, 0, 0
+        for i, src_path in enumerate(snapshot):
+            try:
+                rel = src_path.relative_to(self._data_path)
+                dst_path = dest_root / rel
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                if not src_path.is_file():
+                    continue
+                size = src_path.stat().st_size
+                shutil.move(str(src_path), str(dst_path))
+                moved += 1
+                total_size += size
+            except Exception:
+                pass
+            if i - last_emit >= 100 or i + 1 == total:
+                self.progress.emit(i + 1, max(total, 1))
+                last_emit = i
+
+        self.finished_with_stats.emit(moved, total_size, str(dest_root))
+
 
 from View.Clients.client_pintel import ClientPintel
 from View.Clients.client_vueron_01 import ClientVueron01
@@ -184,6 +234,8 @@ class MainWindow(QMainWindow):
         make_dir(self.app_info.settings_path)
         make_dir(self.app_info.data_path)
 
+        self._setup_backup_ui()
+
     def _setup_groupbox_sizing(self):
         pass
 
@@ -239,6 +291,12 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         if hasattr(self, 'queue_timer'):
             self.queue_timer.stop()
+        if hasattr(self, 'backup_trigger_timer'):
+            self.backup_trigger_timer.stop()
+        if hasattr(self, 'backup_countdown_timer'):
+            self.backup_countdown_timer.stop()
+        if hasattr(self, '_backup_thread') and self._backup_thread is not None:
+            self._backup_thread.wait(5000)
 
         for mt in self.merging_thread_list:
             mt.stop()
@@ -390,6 +448,201 @@ class MainWindow(QMainWindow):
         self._set_data_pause(False)
         self.log(f'[Clear] {deleted} files ({self._format_size(total_size)}) deleted from {self.app_info.data_path}')
         self._clear_thread = None
+
+    def _setup_backup_ui(self):
+        from PySide6.QtWidgets import (QFrame, QProgressBar, QHBoxLayout,
+                                       QWidget, QLineEdit)
+        layout = self.ui.verticalLayout_7
+        insert_idx = layout.count() - 1  # verticalSpacer_7 바로 앞
+
+        def _sep():
+            s = QFrame(self.ui.groupBox_7)
+            s.setFrameShape(QFrame.Shape.HLine)
+            s.setFrameShadow(QFrame.Shadow.Sunken)
+            return s
+
+        layout.insertWidget(insert_idx, _sep()); insert_idx += 1
+
+        # 동시 저장 checkable 버튼
+        self.btn_dual_save = QPushButton('동시 저장', self.ui.groupBox_7)
+        self.btn_dual_save.setCheckable(True)
+        self.btn_dual_save.setChecked(False)
+        self.btn_dual_save.setStyleSheet(
+            'QPushButton { font-size: 9pt; padding: 2px 4px; }'
+            'QPushButton:checked { background-color: #5b8dd9; color: white;'
+            ' border: 1px solid #3a6abf; }')
+        self.btn_dual_save.toggled.connect(self._toggle_dual_save)
+        layout.insertWidget(insert_idx, self.btn_dual_save); insert_idx += 1
+
+        layout.insertWidget(insert_idx, _sep()); insert_idx += 1
+
+        # 백업 경로 행: [LineEdit] [...버튼]
+        path_row = QWidget(self.ui.groupBox_7)
+        path_hl = QHBoxLayout(path_row)
+        path_hl.setContentsMargins(0, 0, 0, 0)
+        path_hl.setSpacing(4)
+        self.lineEdit_backup_dest = QLineEdit(path_row)
+        self.lineEdit_backup_dest.setReadOnly(True)
+        self.lineEdit_backup_dest.setPlaceholderText('백업 경로 미설정')
+        self.lineEdit_backup_dest.setFixedHeight(22)
+        self.lineEdit_backup_dest.setStyleSheet('font-size: 7pt;')
+        self.btn_backup_dest = QPushButton('...', path_row)
+        self.btn_backup_dest.setFixedSize(24, 22)
+        self.btn_backup_dest.setStyleSheet('font-size: 8pt; padding: 0;')
+        self.btn_backup_dest.clicked.connect(self._on_select_backup_dest)
+        path_hl.addWidget(self.lineEdit_backup_dest, 1)
+        path_hl.addWidget(self.btn_backup_dest)
+        layout.insertWidget(insert_idx, path_row); insert_idx += 1
+
+        # 상태 레이블 (카운트다운 / 이동중...)
+        self.label_backup_status = QLabel('', self.ui.groupBox_7)
+        self.label_backup_status.setFixedHeight(16)
+        self.label_backup_status.setStyleSheet('font-size: 7pt; color: #7f8c9b;')
+        layout.insertWidget(insert_idx, self.label_backup_status); insert_idx += 1
+
+        # 진행 progressbar (평소 hidden)
+        self.progressBar_backup = QProgressBar(self.ui.groupBox_7)
+        self.progressBar_backup.setFixedHeight(8)
+        self.progressBar_backup.setTextVisible(False)
+        self.progressBar_backup.setRange(0, 100)
+        self.progressBar_backup.setVisible(False)
+        layout.insertWidget(insert_idx, self.progressBar_backup); insert_idx += 1
+
+        # 지금 백업 버튼
+        self.btn_backup_now = QPushButton('지금 백업', self.ui.groupBox_7)
+        self.btn_backup_now.setFixedHeight(22)
+        self.btn_backup_now.setStyleSheet('font-size: 7pt; padding: 1px 6px;')
+        self.btn_backup_now.clicked.connect(self._on_trigger_backup)
+        layout.insertWidget(insert_idx, self.btn_backup_now); insert_idx += 1
+
+        # 상태 초기화
+        self._backup_dest = None
+        self._backup_thread = None
+        self._backup_interval_sec = 3600
+        self._backup_countdown = self._backup_interval_sec
+        self._current_dual_base = None
+
+        # 1시간 백업 트리거 타이머 (경로 설정 후 start)
+        self.backup_trigger_timer = QTimer(self)
+        self.backup_trigger_timer.setInterval(self._backup_interval_sec * 1000)
+        self.backup_trigger_timer.timeout.connect(self._on_trigger_backup)
+
+        # 1초 카운트다운 표시 타이머 (항상 동작)
+        self.backup_countdown_timer = QTimer(self)
+        self.backup_countdown_timer.setInterval(1000)
+        self.backup_countdown_timer.timeout.connect(self._on_backup_countdown_tick)
+        self.backup_countdown_timer.start()
+
+        self._load_backup_config()
+
+    # ── 자동 백업 핸들러 ──────────────────────────────────────────────────────
+
+    def _on_select_backup_dest(self):
+        if self._backup_thread is not None and self._backup_thread.isRunning():
+            return  # 이동 중 경로 변경 차단
+        from PySide6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(self, '백업 폴더 선택')
+        if not folder:
+            return
+        self._backup_dest = Path(folder)
+        self.lineEdit_backup_dest.setText(folder)
+        self._save_backup_config()
+        self._backup_countdown = self._backup_interval_sec
+        self.backup_trigger_timer.stop()
+        self.backup_trigger_timer.start()
+        self.log(f'[Backup] 경로 설정: {folder}')
+
+    def _on_trigger_backup(self):
+        if not self._backup_dest:
+            self.log('[Backup] 백업 경로가 설정되지 않았습니다.')
+            return
+        if self._backup_thread is not None and self._backup_thread.isRunning():
+            self.log('[Backup] 이미 백업 진행 중입니다.')
+            return
+        self.btn_backup_dest.setEnabled(False)
+        self.btn_backup_now.setEnabled(False)
+        self.progressBar_backup.setRange(0, 1)
+        self.progressBar_backup.setValue(0)
+        self.progressBar_backup.setVisible(True)
+        self.label_backup_status.setText('이동중...')
+        self._backup_thread = _BackupThread(self.app_info.data_path, self._backup_dest, self)
+        self._backup_thread.progress.connect(self._on_backup_progress)
+        self._backup_thread.finished_with_stats.connect(self._on_backup_finished)
+        self._backup_thread.finished.connect(self._backup_thread.deleteLater)
+        self._backup_thread.start()
+        self._backup_countdown = self._backup_interval_sec
+
+    def _on_backup_progress(self, current, total):
+        if self.progressBar_backup.maximum() != total:
+            self.progressBar_backup.setRange(0, total)
+        self.progressBar_backup.setValue(current)
+
+    def _on_backup_finished(self, moved, total_size, dest_dir):
+        self.progressBar_backup.setVisible(False)
+        self.btn_backup_dest.setEnabled(True)
+        self.btn_backup_now.setEnabled(True)
+        self._backup_thread = None
+        if dest_dir:
+            self.log(f'[Backup] {moved}개 ({self._format_size(total_size)}) → {dest_dir}')
+        else:
+            self.log('[Backup] 이동할 파일이 없습니다.')
+
+    def _on_backup_countdown_tick(self):
+        if self._backup_thread is not None and self._backup_thread.isRunning():
+            return  # 이동중 레이블은 _on_trigger_backup이 설정
+        if not self._backup_dest:
+            self.label_backup_status.setText('경로 미설정')
+            return
+        self._backup_countdown -= 1
+        if self._backup_countdown <= 0:
+            self._backup_countdown = self._backup_interval_sec
+        h, rem = divmod(self._backup_countdown, 3600)
+        m, s = divmod(rem, 60)
+        self.label_backup_status.setText(f'다음 백업: {h:02d}:{m:02d}:{s:02d}')
+
+    def _save_backup_config(self):
+        config_path = self.app_info.settings_path / 'backup_config.json'
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump({'backup_dest': str(self._backup_dest) if self._backup_dest else ''}, f)
+        except Exception as e:
+            self.log(f'[Backup] 설정 저장 실패: {e}')
+
+    def _load_backup_config(self):
+        config_path = self.app_info.settings_path / 'backup_config.json'
+        try:
+            if config_path.is_file():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                dest = cfg.get('backup_dest', '')
+                if dest and Path(dest).is_dir():
+                    self._backup_dest = Path(dest)
+                    self.lineEdit_backup_dest.setText(dest)
+                    self.backup_trigger_timer.start()
+        except Exception as e:
+            self.log(f'[Backup] 설정 로드 실패: {e}')
+
+    # ── 동시 저장 토글 ────────────────────────────────────────────────────────
+
+    def _toggle_dual_save(self, checked: bool):
+        all_clients = [self.client_pintel, self.client_keti,
+                       self.client_vueron_01, self.client_vueron_02]
+        if checked:
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            dual_base = self.app_info.data_path / f'received_data_{ts}'
+            self._current_dual_base = dual_base
+            for client in all_clients:
+                if hasattr(client, 'savers'):
+                    for saver in client.savers:
+                        saver.dual_path_base = dual_base
+            self.log(f'[DualSave] ON → {dual_base.name}')
+        else:
+            self._current_dual_base = None
+            for client in all_clients:
+                if hasattr(client, 'savers'):
+                    for saver in client.savers:
+                        saver.dual_path_base = None
+            self.log('[DualSave] OFF')
 
     @staticmethod
     def _format_size(size_bytes):
