@@ -182,7 +182,9 @@ class ClientPintel(MqttWidget):
             timestamp = int(timestamp_data[:-3])
             ms = timestamp_data[-3:]
             dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            timestamp_filename = dt.strftime("%Y%m%d_%H%M%S")+ms
+            # 파일명 시간은 merge의 target_time(로컬 KST)과 비교되므로 KST로 변환
+            dt_kst = dt + timedelta(hours=9)
+            timestamp_filename = dt_kst.strftime("%Y%m%d_%H%M%S")+ms
             id_data = f'{int(id_list[0]):02d}{int(id_list[1]):02d}'
         except (ValueError, TypeError, IndexError):
             self.parent.log('PINTEL >> Invalid timestamp/id format')
