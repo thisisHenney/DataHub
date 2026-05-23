@@ -194,9 +194,14 @@ class FileSaverThread(QThread):
                         if not json_data.load(message):
                             continue
 
-                    # vtk 변환 + dict 등록을 json enqueue보다 먼저 수행.
-                    # _enqueue_write 가 backpressure 로 blocking 되면 그 동안 merge 에서
-                    # vtk_data_dict 를 못 읽어 빈 merge 가 발생하는 것을 방지.
+                    # json enqueue 를 vtk 변환보다 먼저 수행.
+                    # backpressure blocking 시 saver 의 vtk 변환·dict 등록 자체가 자연스럽게
+                    # writer 속도에 맞춰 throttle 되어 vtk_data_dict 무제한 누적을 방지.
+                    if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
+                        _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
+                    else:
+                        _enqueue_write('json', filepath / (filename + '.json'), json_data)
+
                     self.converter.set_data_company(self.CompanyType)
                     valid = self.converter.load_array_from_reader(json_data)
                     if isinstance(valid, str):
@@ -206,16 +211,10 @@ class FileSaverThread(QThread):
                         continue
                     vtk_result = self.converter.make_vtk()
                     # make_vtk() 이후엔 self.array(파싱된 numpy 캐시)는 더 이상 쓰이지 않음.
-                    # 즉시 해제하여 saver 스레드 40개+가 잡고 있는 메모리를 줄임.
+                    # 즉시 해제하여 saver 스레드들이 잡고 있는 메모리를 줄임.
                     self.converter.array = np.array([])
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
-
-                    # dict 등록 후에 I/O 큐잉 (blocking 돼도 merge 에는 영향 없음)
-                    if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
-                        _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
-                    else:
-                        _enqueue_write('json', filepath / (filename + '.json'), json_data)
 
                     # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
                     vtk_for_write = _deep_copy_vtk(vtk_result)
