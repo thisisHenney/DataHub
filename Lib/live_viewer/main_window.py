@@ -278,7 +278,7 @@ class MainWindow(QMainWindow):
         self._combo_interval = QComboBox()
         for text, _ in _REFRESH_OPTIONS:
             self._combo_interval.addItem(text)
-        self._combo_interval.setCurrentIndex(4)  # 기본값: 4초
+        self._combo_interval.setCurrentIndex(0)  # 기본값: 갱신 안함
 
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
@@ -298,7 +298,7 @@ class MainWindow(QMainWindow):
         self._build_tree_panel()
 
         self.timer = QTimer(self)
-        self._refresh_interval = 4
+        self._refresh_interval = 0
         self.time = self._refresh_interval
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.time_goes_on)
