@@ -3,7 +3,7 @@
 
 import threading
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIntValidator
 
@@ -181,9 +181,8 @@ class ClientPintel(MqttWidget):
             timestamp_data = str(timestamp_data)
             timestamp = int(timestamp_data[:-3])
             ms = timestamp_data[-3:]
-            dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            dt_kst = dt + timedelta(hours=9)
-            timestamp_filename = dt_kst.strftime("%Y%m%d_%H%M%S")+ms
+            dt = datetime.utcfromtimestamp(timestamp)
+            timestamp_filename = dt.strftime("%Y%m%d_%H%M%S")+ms
             id_data = f'{int(id_list[0]):02d}{int(id_list[1]):02d}'
         except (ValueError, TypeError, IndexError):
             self.parent.log('PINTEL >> Invalid timestamp/id format')
