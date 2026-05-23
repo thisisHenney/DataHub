@@ -629,7 +629,7 @@ class MainWindow(QMainWindow):
                        self.client_vueron_01, self.client_vueron_02]
         if checked:
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dual_base = self.app_info.data_path / f'received_data_{ts}'
+            dual_base = self.app_info.data_path.parent / f'received_data_{ts}'
             self._current_dual_base = dual_base
             for client in all_clients:
                 if hasattr(client, 'savers'):
