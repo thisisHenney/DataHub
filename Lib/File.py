@@ -341,13 +341,10 @@ class FileMergingThread(QThread):
         with self.vueron_lock:
             vueron_filename_list = list(self.vtk_data_dict_vueron.keys())
 
-        pintel_used_keys = set()
-        keti_used_key = None
-        vueron_used_keys = set()
-
         if self._stopped:
             return
 
+        # select+pop을 단일 락 구간에서 처리하여 다른 merge 스레드와 동일 데이터 중복 송신 방지
         arr = self._safe_parse_filenames(pintel_filename_list)
         if arr is not None:
             times = arr[:, 2]
@@ -355,25 +352,22 @@ class FileMergingThread(QThread):
 
             valid_mask = dt_array < merge_limit_milli_sec
             valid_idxs = np.where(valid_mask)[0]
-            if valid_idxs.size > 0:
-                valid_ids = arr[valid_idxs, 0]
-                unique_ids = np.unique(valid_ids)
-                with self.pintel_lock:
+            expired_keys = [pintel_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]]
+
+            with self.pintel_lock:
+                if valid_idxs.size > 0:
+                    valid_ids = arr[valid_idxs, 0]
+                    unique_ids = np.unique(valid_ids)
                     for s_id in unique_ids:
                         sid_mask = valid_ids == s_id
                         sid_idxs = valid_idxs[sid_mask]
                         min_idx = sid_idxs[np.argmin(dt_array[sid_idxs])]
                         key = pintel_filename_list[min_idx]
-                        if key in self.vtk_data_dict_pintel:
-                            pintel_data_list.append(self.vtk_data_dict_pintel[key])
-                            pintel_used_keys.add(key)
-
-            expired_keys = {pintel_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
-            keys_to_delete = pintel_used_keys | expired_keys
-            if keys_to_delete:
-                with self.pintel_lock:
-                    for key in keys_to_delete:
-                        self.vtk_data_dict_pintel.pop(key, None)
+                        data = self.vtk_data_dict_pintel.pop(key, None)
+                        if data is not None:
+                            pintel_data_list.append(data)
+                for key in expired_keys:
+                    self.vtk_data_dict_pintel.pop(key, None)
 
         if self._stopped:
             return
@@ -382,20 +376,15 @@ class FileMergingThread(QThread):
         if arr is not None:
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
-            idxs = np.where(dt_array < merge_limit_milli_sec)[0]
-            if idxs.size > 0:
-                min_idx = idxs[np.argmin(dt_array[idxs])]
-                keti_used_key = keti_filename_list[min_idx]
-                with self.keti_lock:
-                    if keti_used_key in self.vtk_data_dict_keti:
-                        keti_data = self.vtk_data_dict_keti[keti_used_key]
+            valid_idxs = np.where(dt_array < merge_limit_milli_sec)[0]
+            expired_keys = [keti_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]]
 
-            expired_keys = {keti_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
-            keys_to_delete = expired_keys | ({keti_used_key} if keti_used_key else set())
-            if keys_to_delete:
-                with self.keti_lock:
-                    for key in keys_to_delete:
-                        self.vtk_data_dict_keti.pop(key, None)
+            with self.keti_lock:
+                if valid_idxs.size > 0:
+                    min_idx = valid_idxs[np.argmin(dt_array[valid_idxs])]
+                    keti_data = self.vtk_data_dict_keti.pop(keti_filename_list[min_idx], None)
+                for key in expired_keys:
+                    self.vtk_data_dict_keti.pop(key, None)
 
         if self._stopped:
             return
@@ -404,28 +393,22 @@ class FileMergingThread(QThread):
         if arr is not None:
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
+            expired_keys = [vueron_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]]
 
-            for s_id in (1, 2):
-                c1 = arr[:, 0] == s_id
-                c2 = dt_array < merge_limit_milli_sec
-                idxs = np.where(np.logical_and(c1, c2))[0]
-
-                if not idxs.size > 0:
-                    continue
-
-                min_idx = idxs[np.argmin(dt_array[idxs])]
-                key = vueron_filename_list[min_idx]
-                with self.vueron_lock:
-                    if key in self.vtk_data_dict_vueron:
-                        vueron_data_list.append(self.vtk_data_dict_vueron[key])
-                        vueron_used_keys.add(key)
-
-            expired_keys = {vueron_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
-            keys_to_delete = vueron_used_keys | expired_keys
-            if keys_to_delete:
-                with self.vueron_lock:
-                    for key in keys_to_delete:
-                        self.vtk_data_dict_vueron.pop(key, None)
+            with self.vueron_lock:
+                for s_id in (1, 2):
+                    c1 = arr[:, 0] == s_id
+                    c2 = dt_array < merge_limit_milli_sec
+                    idxs = np.where(np.logical_and(c1, c2))[0]
+                    if not idxs.size > 0:
+                        continue
+                    min_idx = idxs[np.argmin(dt_array[idxs])]
+                    key = vueron_filename_list[min_idx]
+                    data = self.vtk_data_dict_vueron.pop(key, None)
+                    if data is not None:
+                        vueron_data_list.append(data)
+                for key in expired_keys:
+                    self.vtk_data_dict_vueron.pop(key, None)
 
         if self._stopped:
             return
