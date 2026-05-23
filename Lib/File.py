@@ -465,11 +465,25 @@ class FileMergingThread(QThread):
         # 직렬화는 한 번만 — get_buffer()는 json.dumps()를 매번 새로 수행하므로 변수에 캐시
         json_buffer = json_data.get_buffer()
 
-        # KETI로 전달할 데이터
-        self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_buffer)
+        # 전송 주기 throttle
+        _should_send = True
+        _interval_ms = getattr(self.parent, '_keti_send_interval_ms', 0)
+        if _interval_ms > 0:
+            _send_lock = getattr(self.parent, '_keti_send_lock', None)
+            if _send_lock is not None:
+                with _send_lock:
+                    _now_ms = datetime.now().timestamp() * 1000
+                    _last = self.parent._last_keti_send_time
+                    if _last is None or (_now_ms - _last) >= _interval_ms:
+                        self.parent._last_keti_send_time = _now_ms
+                    else:
+                        _should_send = False
 
-        # LIMES에 전달할 데이터(PINTEL mqtt 포트 이용)
-        self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_buffer)
+        if _should_send:
+            # KETI로 전달할 데이터
+            self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_buffer)
+            # LIMES에 전달할 데이터(PINTEL mqtt 포트 이용)
+            self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_buffer)
 
         # [8eight] Binary 파일 생성 (여러 merge 스레드 동시 진입 방지)
         should_generate_point = False

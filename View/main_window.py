@@ -235,6 +235,7 @@ class MainWindow(QMainWindow):
         make_dir(self.app_info.data_path)
 
         self._setup_backup_ui()
+        self._setup_keti_send_interval()
 
     def _setup_groupbox_sizing(self):
         pass
@@ -623,6 +624,34 @@ class MainWindow(QMainWindow):
             self.log(f'[Backup] 설정 로드 실패: {e}')
 
     # ── 동시 저장 토글 ────────────────────────────────────────────────────────
+
+    def _setup_keti_send_interval(self):
+        from PySide6.QtWidgets import QComboBox
+
+        self._keti_send_interval_ms = 0
+        self._last_keti_send_time = None
+        self._keti_send_lock = threading.Lock()
+
+        self.comboBox_keti_send_interval = QComboBox(self.ui.groupBox_keti)
+        for label, ms in [
+            ('매 수신마다', 0), ('0.5초', 500), ('1초', 1000), ('2초', 2000),
+            ('3초', 3000), ('4초', 4000), ('5초', 5000), ('10초', 10000),
+            ('15초', 15000), ('20초', 20000), ('30초', 30000), ('40초', 40000),
+            ('1분', 60000), ('2분', 120000), ('3분', 180000), ('4분', 240000),
+            ('5분', 300000), ('10분', 600000),
+        ]:
+            self.comboBox_keti_send_interval.addItem(label, ms)
+        self.comboBox_keti_send_interval.setFixedHeight(22)
+        self.comboBox_keti_send_interval.setStyleSheet('font-size: 8pt;')
+        self.comboBox_keti_send_interval.currentIndexChanged.connect(self._on_keti_send_interval_changed)
+        self.ui.horizontalLayout_menu_keti.insertWidget(0, self.comboBox_keti_send_interval)
+
+    def _on_keti_send_interval_changed(self, index):
+        ms = self.comboBox_keti_send_interval.itemData(index)
+        with self._keti_send_lock:
+            self._keti_send_interval_ms = ms
+            self._last_keti_send_time = None
+        self.log(f'[KETI] 전송 주기: {self.comboBox_keti_send_interval.currentText()}')
 
     def _toggle_dual_save(self, checked: bool):
         all_clients = [self.client_pintel, self.client_keti,
