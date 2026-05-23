@@ -464,7 +464,7 @@ class MainWindow(QMainWindow):
         layout.insertWidget(insert_idx, _sep()); insert_idx += 1
 
         # 동시 저장 checkable 버튼
-        self.btn_dual_save = QPushButton('동시 저장', self.ui.groupBox_7)
+        self.btn_dual_save = QPushButton('동시 저장 대기', self.ui.groupBox_7)
         self.btn_dual_save.setCheckable(True)
         self.btn_dual_save.setChecked(False)
         self.btn_dual_save.setStyleSheet(
@@ -635,6 +635,7 @@ class MainWindow(QMainWindow):
                 if hasattr(client, 'savers'):
                     for saver in client.savers:
                         saver.dual_path_base = dual_base
+            self.btn_dual_save.setText('동시 저장중')
             self.log(f'[DualSave] ON → {dual_base.name}')
         else:
             self._current_dual_base = None
@@ -642,6 +643,7 @@ class MainWindow(QMainWindow):
                 if hasattr(client, 'savers'):
                     for saver in client.savers:
                         saver.dual_path_base = None
+            self.btn_dual_save.setText('동시 저장 대기')
             self.log('[DualSave] OFF')
 
     @staticmethod
