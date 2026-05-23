@@ -736,14 +736,14 @@ class MainWindow(QMainWindow):
 
     def clicked_disconnect_all(self):
         self.log('Disconnect All')
+        # 자동재접속을 먼저 비활성화해야 disconnect 중 on_disconnected_task가 재접속 타이머를 등록하지 않음
+        if self.ui.checkBox_auto_reconnect.isChecked():
+            self.ui.checkBox_auto_reconnect.setChecked(False)
         self.client_pintel.disconnect_from_server()
         self.client_vueron_01.disconnect_from_server()
         self.client_vueron_02.disconnect_from_server()
         self.client_keti.disconnect_from_server()
         self.client_nextfoam.disconnect_from_server()
-
-        if self.ui.checkBox_auto_reconnect.isChecked():
-            self.ui.checkBox_auto_reconnect.setChecked(False)
 
     def clicked_open_received_path_datahub(self):
         self.log('Open received data folder')
