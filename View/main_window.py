@@ -147,7 +147,7 @@ class MainWindow(QMainWindow):
             FileMergingThread(self, self.vtk_data_dict_pintel,
                               self.vtk_data_dict_keti,
                               self.vtk_data_dict_vueron,
-                              self.target_time, 20,
+                              self.target_time, 0,
                               self.app_info,
                               self.pintel_lock, self.keti_lock, self.vueron_lock)
             for i in range(self.num_merge_threads)]
