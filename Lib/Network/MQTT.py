@@ -89,11 +89,18 @@ class MqttClientThread(QThread):
             self.restore_ui.emit()
 
     def on_disconnect(self, client, userdata, rc):
+        # rc=0은 정상 종료, 그 외는 비정상 (keepalive 초과, 네트워크 끊김, broker 강제종료 등).
+        # 진단을 위해 rc 코드와 paho 표준 사유 문자열을 함께 로깅.
+        try:
+            reason = mqtt.error_string(rc)
+        except Exception:
+            reason = 'unknown'
         if rc == 0:
-            self.disconnected.emit()
+            self.notice.emit(f'[mqtt] Disconnected cleanly (rc=0, {reason})')
         else:
-            self.notice.emit('[mqtt:Err] Disconnect operation error')
-            self.restore_ui.emit()
+            self.notice.emit(f'[mqtt:Err] Unexpected disconnect (rc={rc}, {reason})')
+        # 비정상 disconnect에서도 disconnected를 emit해야 재접속 로직이 동작함.
+        self.disconnected.emit()
 
     def on_message(self, client, userdata, msg):
         data = (msg.topic, msg.payload.decode())
