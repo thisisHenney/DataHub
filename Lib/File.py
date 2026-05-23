@@ -310,7 +310,8 @@ class FileMergingThread(QThread):
         if not isinstance(self.target_time, datetime):
             self.target_time = datetime.now()
         try:
-            self.run_merge()
+            limit_ms = int(self.chunk_size * 1000) if self.chunk_size > 0 else 60000
+            self.run_merge(merge_limit_milli_sec=limit_ms)
         except Exception:
             print("[Merge Notice]:")
             traceback.print_exc()
