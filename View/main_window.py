@@ -126,6 +126,13 @@ class MainWindow(QMainWindow):
         self.keti_lock = threading.Lock()
         self.vueron_lock = threading.Lock()
 
+        # KETI 송신 주기가 길어 merge 사이클마다 데이터가 없을 수 있음.
+        # 신규 KETI 도착 전까지 직전 데이터를 재사용해 union이 비지 않게 함.
+        # 체크박스로 ON/OFF 가능 (기본 ON, _setup_backup_ui에서 체크박스 생성 시 확정)
+        self._last_keti_data = None
+        self._last_keti_data_lock = threading.Lock()
+        self._use_keti_cache = True
+
         self.is_reconnect = False
         self._clear_thread = None
 
@@ -421,6 +428,10 @@ class MainWindow(QMainWindow):
         with self.vueron_lock:
             self.vtk_data_dict_vueron.clear()
 
+        # KETI 캐시도 초기화
+        with self._last_keti_data_lock:
+            self._last_keti_data = None
+
         # saver stack 비우기
         for client in [self.client_pintel, self.client_keti,
                        self.client_vueron_01, self.client_vueron_02]:
@@ -452,7 +463,7 @@ class MainWindow(QMainWindow):
 
     def _setup_backup_ui(self):
         from PySide6.QtWidgets import (QFrame, QProgressBar, QHBoxLayout,
-                                       QWidget, QLineEdit)
+                                       QWidget, QLineEdit, QCheckBox)
         layout = self.ui.verticalLayout_7
         insert_idx = layout.count() - 1  # verticalSpacer_7 바로 앞
 
@@ -516,6 +527,22 @@ class MainWindow(QMainWindow):
         self.btn_backup_now.clicked.connect(self._on_trigger_backup)
         layout.insertWidget(insert_idx, self.btn_backup_now); insert_idx += 1
 
+        # 구분선
+        layout.insertWidget(insert_idx, _sep()); insert_idx += 1
+
+        # KETI 캐시 기능 안내 라벨
+        self.label_keti_cache = QLabel('KETI 데이터 누락 시 이전 값 재사용', self.ui.groupBox_7)
+        self.label_keti_cache.setStyleSheet('font-size: 7pt; color: #555;')
+        layout.insertWidget(insert_idx, self.label_keti_cache); insert_idx += 1
+
+        # KETI 캐시 ON/OFF 체크박스 (기본 ON)
+        self.checkBox_keti_cache = QCheckBox('사용함', self.ui.groupBox_7)
+        self.checkBox_keti_cache.setStyleSheet('font-size: 8pt;')
+        self.checkBox_keti_cache.setChecked(True)
+        self.checkBox_keti_cache.toggled.connect(self._toggle_keti_cache)
+        layout.insertWidget(insert_idx, self.checkBox_keti_cache); insert_idx += 1
+        self._use_keti_cache = True
+
         # 상태 초기화
         self._backup_dest = None
         self._backup_thread = None
@@ -535,6 +562,18 @@ class MainWindow(QMainWindow):
         self.backup_countdown_timer.start()
 
         self._load_backup_config()
+
+    # ── KETI 캐시 토글 ────────────────────────────────────────────────────────
+
+    def _toggle_keti_cache(self, checked: bool):
+        self._use_keti_cache = checked
+        if not checked:
+            # 끄면 캐시 비워서 즉시 효과 (이후 신규 KETI 없으면 union에 KETI 누락)
+            with self._last_keti_data_lock:
+                self._last_keti_data = None
+            self.log('KETI 캐시 OFF — 신규 KETI 없으면 union에 KETI 누락')
+        else:
+            self.log('KETI 캐시 ON — 신규 KETI 없으면 직전 데이터 재사용')
 
     # ── 자동 백업 핸들러 ──────────────────────────────────────────────────────
 

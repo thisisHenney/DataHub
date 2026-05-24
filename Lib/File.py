@@ -377,6 +377,7 @@ class FileMergingThread(QThread):
         if self._stopped:
             return
 
+        fresh_keti_data = None
         arr = self._safe_parse_filenames(keti_filename_list)
         if arr is not None:
             times = arr[:, 2]
@@ -387,7 +388,7 @@ class FileMergingThread(QThread):
                 keti_used_key = keti_filename_list[min_idx]
                 with self.keti_lock:
                     if keti_used_key in self.vtk_data_dict_keti:
-                        keti_data = self.vtk_data_dict_keti[keti_used_key]
+                        fresh_keti_data = self.vtk_data_dict_keti[keti_used_key]
 
             expired_keys = {keti_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
             keys_to_delete = expired_keys | ({keti_used_key} if keti_used_key else set())
@@ -395,6 +396,17 @@ class FileMergingThread(QThread):
                 with self.keti_lock:
                     for key in keys_to_delete:
                         self.vtk_data_dict_keti.pop(key, None)
+
+        # KETI 캐시 fallback: 사용자가 체크박스로 ON/OFF 가능
+        # ON: 신규 데이터 있으면 캐시 갱신, 없으면 직전 캐시 사용
+        # OFF: 캐시 무시, 신규 데이터만 사용 (없으면 union에 KETI 누락)
+        if getattr(self.parent, '_use_keti_cache', True):
+            with self.parent._last_keti_data_lock:
+                if fresh_keti_data is not None:
+                    self.parent._last_keti_data = fresh_keti_data
+                keti_data = self.parent._last_keti_data
+        else:
+            keti_data = fresh_keti_data
 
         if self._stopped:
             return
