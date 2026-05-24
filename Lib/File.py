@@ -400,11 +400,16 @@ class FileMergingThread(QThread):
         # KETI 캐시 fallback: 사용자가 체크박스로 ON/OFF 가능
         # ON: 신규 데이터 있으면 캐시 갱신, 없으면 직전 캐시 사용
         # OFF: 캐시 무시, 신규 데이터만 사용 (없으면 union에 KETI 누락)
+        #
+        # 동일 vtkPolyData 객체를 여러 merge 스레드가 동시에 vtkCellCenters().Update()
+        # 같은 VTK pipeline에 넣으면 thread-safe하지 않아 hang/crash 발생.
+        # 캐시는 동일 객체가 여러 사이클·여러 스레드에서 공유되므로 read 시점에 deep copy.
         if getattr(self.parent, '_use_keti_cache', True):
             with self.parent._last_keti_data_lock:
                 if fresh_keti_data is not None:
                     self.parent._last_keti_data = fresh_keti_data
-                keti_data = self.parent._last_keti_data
+                cached = self.parent._last_keti_data
+            keti_data = _deep_copy_vtk(cached)
         else:
             keti_data = fresh_keti_data
 
