@@ -201,6 +201,8 @@ class ClientKeti(MqttWidget):
 
     def on_restore_ui_task(self):
         self.set_disconnected_ui()
+        if self.parent.is_reconnect:
+            QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def change_connect_ip(self, ip):
         if not ip == 'localhost':

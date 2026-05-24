@@ -130,6 +130,12 @@ class MqttClientThread(QThread):
             return False
 
         try:
+            # 이전 loop_start()가 남아있을 수 있으므로 먼저 정리
+            try:
+                self.client.loop_stop()
+            except Exception:
+                pass
+
             if self.is_require_login:
                 self.client.username_pw_set(self.login_id , self.login_pw)
 
@@ -317,6 +323,8 @@ class MqttWidget(QWidget):
 
     def connect_to_server(self):
         if self.client.is_connected():
+            return
+        if self.client.isRunning():
             return
 
         self.connect_to_server_pretask()

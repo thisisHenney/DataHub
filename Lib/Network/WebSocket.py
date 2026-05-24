@@ -248,6 +248,8 @@ class WebSocketWidget(QWidget):
     def connect_to_server(self):
         if self.client.is_connected():
             return
+        if self.client.isRunning():
+            return
 
         self.connect_to_server_pretask()
         self.client.start()
