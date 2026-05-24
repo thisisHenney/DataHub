@@ -167,7 +167,7 @@ class FileSaverThread(QThread):
         self.converter = VtkJsonConverter()
         self.CompanyType = company_type
 
-        self.stack = deque()
+        self.stack = deque(maxlen=32)
         self.is_running = True
         self.vtk_data_dict = vtk_data_dict
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
