@@ -3,8 +3,11 @@
 
 import json
 import os
+import re
 import gzip
 from pathlib import Path
+
+_TRAILING_COMMA_RE = re.compile(r',\s*([\]}])')
 
 SPLIT_CHAR = '.'
 
@@ -105,6 +108,13 @@ class JsonRW:
     def load(self, json_data=""):
         try:
             self._buffer = json.loads(json_data)
+            return True
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+        # trailing comma 제거 후 재시도 (Pintel 장치 등 비표준 JSON 대응)
+        try:
+            cleaned = _TRAILING_COMMA_RE.sub(r'\1', json_data)
+            self._buffer = json.loads(cleaned)
             return True
         except (json.JSONDecodeError, ValueError, TypeError):
             return False
