@@ -14,7 +14,7 @@ from Lib.Network.WebSocket import WebSocketWidget
 from Lib.Converter.vtk_json_converter import VtkJsonConverter, CompanyType
 
 
-VUERON_IP = '192.168.10.214'
+VUERON_IP = '192.168.10.152'
 VUERON_PORT = 10205
 VUERON_PATH='/ws/v1/mbembo/area/1'
 # 확인용: ws://192.168.10.214:10205/ws/v1/mbembo/area/1

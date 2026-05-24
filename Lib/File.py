@@ -374,6 +374,13 @@ class FileMergingThread(QThread):
                     for key in keys_to_delete:
                         self.vtk_data_dict_pintel.pop(key, None)
 
+        # Pintel 캐시 fallback: 신규 없으면 직전 데이터 재사용
+        if getattr(self.parent, '_use_data_cache', True):
+            with self.parent._last_pintel_data_lock:
+                if pintel_data_list:
+                    self.parent._last_pintel_data = pintel_data_list
+                pintel_data_list = self.parent._last_pintel_data or []
+
         if self._stopped:
             return
 
@@ -404,7 +411,7 @@ class FileMergingThread(QThread):
         # 동일 vtkPolyData 객체를 여러 merge 스레드가 동시에 vtkCellCenters().Update()
         # 같은 VTK pipeline에 넣으면 thread-safe하지 않아 hang/crash 발생.
         # 캐시는 동일 객체가 여러 사이클·여러 스레드에서 공유되므로 read 시점에 deep copy.
-        if getattr(self.parent, '_use_keti_cache', True):
+        if getattr(self.parent, '_use_data_cache', True):
             with self.parent._last_keti_data_lock:
                 if fresh_keti_data is not None:
                     self.parent._last_keti_data = fresh_keti_data
@@ -442,6 +449,13 @@ class FileMergingThread(QThread):
                 with self.vueron_lock:
                     for key in keys_to_delete:
                         self.vtk_data_dict_vueron.pop(key, None)
+
+        # Vueron 캐시 fallback: 신규 없으면 직전 데이터 재사용
+        if getattr(self.parent, '_use_data_cache', True):
+            with self.parent._last_vueron_data_lock:
+                if vueron_data_list:
+                    self.parent._last_vueron_data = vueron_data_list
+                vueron_data_list = self.parent._last_vueron_data or []
 
         if self._stopped:
             return
@@ -481,23 +495,38 @@ class FileMergingThread(QThread):
         # 직렬화는 한 번만 — get_buffer()는 json.dumps()를 매번 새로 수행하므로 변수에 캐시
         json_buffer = json_data.get_buffer()
 
-        # 전송 주기 throttle
-        _should_send = True
-        _interval_ms = getattr(self.parent, '_keti_send_interval_ms', 0)
-        if _interval_ms > 0:
-            _send_lock = getattr(self.parent, '_keti_send_lock', None)
-            if _send_lock is not None:
-                with _send_lock:
+        # KETI 전송 주기 throttle
+        _should_send_keti = True
+        _keti_interval_ms = getattr(self.parent, '_keti_send_interval_ms', 0)
+        if _keti_interval_ms > 0:
+            _keti_lock = getattr(self.parent, '_keti_send_lock', None)
+            if _keti_lock is not None:
+                with _keti_lock:
                     _now_ms = datetime.now().timestamp() * 1000
                     _last = self.parent._last_keti_send_time
-                    if _last is None or (_now_ms - _last) >= _interval_ms:
+                    if _last is None or (_now_ms - _last) >= _keti_interval_ms:
                         self.parent._last_keti_send_time = _now_ms
                     else:
-                        _should_send = False
+                        _should_send_keti = False
 
-        if _should_send:
+        # Pintel 전송 주기 throttle
+        _should_send_pintel = True
+        _pintel_interval_ms = getattr(self.parent, '_pintel_send_interval_ms', 0)
+        if _pintel_interval_ms > 0:
+            _pintel_lock = getattr(self.parent, '_pintel_send_lock', None)
+            if _pintel_lock is not None:
+                with _pintel_lock:
+                    _now_ms = datetime.now().timestamp() * 1000
+                    _last = self.parent._last_pintel_send_time
+                    if _last is None or (_now_ms - _last) >= _pintel_interval_ms:
+                        self.parent._last_pintel_send_time = _now_ms
+                    else:
+                        _should_send_pintel = False
+
+        if _should_send_keti:
             # KETI로 전달할 데이터
             self.parent.client_keti.send_message(SEND_KETI_CONGESTION, json_buffer)
+        if _should_send_pintel:
             # LIMES에 전달할 데이터(PINTEL mqtt 포트 이용)
             self.parent.client_pintel.send_message(SEND_PINTEL_MERGED, json_buffer)
 

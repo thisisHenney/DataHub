@@ -128,6 +128,8 @@ class JsonRW:
         _buffer = self._buffer
         for key in self._parse_key(keys):
             if isinstance(key, int) and isinstance(_buffer, list):
+                if key >= len(_buffer):
+                    return None
                 _buffer = _buffer[key]
             elif isinstance(key, str) and isinstance(_buffer, dict):
                 _buffer = _buffer.get(key)

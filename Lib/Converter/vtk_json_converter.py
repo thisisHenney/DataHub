@@ -529,7 +529,8 @@ class VtkJsonConverter:
         elif self.company == CompanyType.Vueron:
             people_dict_parent = reader.get('payload.clientFrames[0]')
             if people_dict_parent is None or 'vObjects' not in people_dict_parent:
-                raise FileNotFoundError('no people data in Vueron')
+                self.array = np.empty((0, 6))
+                return
             people_dict_list = people_dict_parent['vObjects']
             people_array = []
             for person_dict in people_dict_list:

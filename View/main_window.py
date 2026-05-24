@@ -126,12 +126,16 @@ class MainWindow(QMainWindow):
         self.keti_lock = threading.Lock()
         self.vueron_lock = threading.Lock()
 
-        # KETI 송신 주기가 길어 merge 사이클마다 데이터가 없을 수 있음.
-        # 신규 KETI 도착 전까지 직전 데이터를 재사용해 union이 비지 않게 함.
+        # 각 소스의 송신 주기가 길어 merge 사이클마다 데이터가 없을 수 있음.
+        # 신규 데이터 도착 전까지 직전 데이터를 재사용해 union이 비지 않게 함.
         # 체크박스로 ON/OFF 가능 (기본 ON, _setup_backup_ui에서 체크박스 생성 시 확정)
+        self._last_pintel_data = None
+        self._last_pintel_data_lock = threading.Lock()
+        self._last_vueron_data = None
+        self._last_vueron_data_lock = threading.Lock()
         self._last_keti_data = None
         self._last_keti_data_lock = threading.Lock()
-        self._use_keti_cache = True
+        self._use_data_cache = True
 
         self.is_reconnect = False
         self._clear_thread = None
@@ -428,7 +432,11 @@ class MainWindow(QMainWindow):
         with self.vueron_lock:
             self.vtk_data_dict_vueron.clear()
 
-        # KETI 캐시도 초기화
+        # 전체 데이터 캐시 초기화
+        with self._last_pintel_data_lock:
+            self._last_pintel_data = None
+        with self._last_vueron_data_lock:
+            self._last_vueron_data = None
         with self._last_keti_data_lock:
             self._last_keti_data = None
 
@@ -530,18 +538,18 @@ class MainWindow(QMainWindow):
         # 구분선
         layout.insertWidget(insert_idx, _sep()); insert_idx += 1
 
-        # KETI 캐시 기능 안내 라벨
-        self.label_keti_cache = QLabel('KETI 데이터 누락 시 이전 값 재사용', self.ui.groupBox_7)
-        self.label_keti_cache.setStyleSheet('font-size: 7pt; color: #555;')
-        layout.insertWidget(insert_idx, self.label_keti_cache); insert_idx += 1
+        # 데이터 캐시 기능 안내 라벨
+        self.label_data_cache = QLabel('데이터 누락 시 이전 값 재사용', self.ui.groupBox_7)
+        self.label_data_cache.setStyleSheet('font-size: 7pt; color: #555;')
+        layout.insertWidget(insert_idx, self.label_data_cache); insert_idx += 1
 
-        # KETI 캐시 ON/OFF 체크박스 (기본 ON)
-        self.checkBox_keti_cache = QCheckBox('사용함', self.ui.groupBox_7)
-        self.checkBox_keti_cache.setStyleSheet('font-size: 8pt;')
-        self.checkBox_keti_cache.setChecked(True)
-        self.checkBox_keti_cache.toggled.connect(self._toggle_keti_cache)
-        layout.insertWidget(insert_idx, self.checkBox_keti_cache); insert_idx += 1
-        self._use_keti_cache = True
+        # 데이터 캐시 ON/OFF 체크박스 (기본 ON)
+        self.checkBox_data_cache = QCheckBox('사용함', self.ui.groupBox_7)
+        self.checkBox_data_cache.setStyleSheet('font-size: 8pt;')
+        self.checkBox_data_cache.setChecked(True)
+        self.checkBox_data_cache.toggled.connect(self._toggle_data_cache)
+        layout.insertWidget(insert_idx, self.checkBox_data_cache); insert_idx += 1
+        self._use_data_cache = True
 
         # 상태 초기화
         self._backup_dest = None
@@ -563,17 +571,21 @@ class MainWindow(QMainWindow):
 
         self._load_backup_config()
 
-    # ── KETI 캐시 토글 ────────────────────────────────────────────────────────
+    # ── 데이터 캐시 토글 ──────────────────────────────────────────────────────
 
-    def _toggle_keti_cache(self, checked: bool):
-        self._use_keti_cache = checked
+    def _toggle_data_cache(self, checked: bool):
+        self._use_data_cache = checked
         if not checked:
-            # 끄면 캐시 비워서 즉시 효과 (이후 신규 KETI 없으면 union에 KETI 누락)
+            # 끄면 캐시 비워서 즉시 효과 (이후 신규 데이터 없으면 union에 누락)
+            with self._last_pintel_data_lock:
+                self._last_pintel_data = None
+            with self._last_vueron_data_lock:
+                self._last_vueron_data = None
             with self._last_keti_data_lock:
                 self._last_keti_data = None
-            self.log('KETI 캐시 OFF — 신규 KETI 없으면 union에 KETI 누락')
+            self.log('데이터 캐시 OFF — 신규 데이터 없으면 union에 누락')
         else:
-            self.log('KETI 캐시 ON — 신규 KETI 없으면 직전 데이터 재사용')
+            self.log('데이터 캐시 ON — 신규 데이터 없으면 직전 데이터 재사용')
 
     # ── 자동 백업 핸들러 ──────────────────────────────────────────────────────
 
@@ -665,30 +677,49 @@ class MainWindow(QMainWindow):
     # ── 동시 저장 토글 ────────────────────────────────────────────────────────
 
     def _setup_keti_send_interval(self):
-        from PySide6.QtWidgets import QComboBox
+        from PySide6.QtWidgets import QComboBox, QLabel
 
-        self._keti_send_interval_ms = 0
-        self._last_keti_send_time = None
-        self._keti_send_lock = threading.Lock()
-
-        self.comboBox_keti_send_interval = QComboBox(self.ui.groupBox_keti)
-        for label, ms in [
+        _INTERVAL_ITEMS = [
             ('매 수신마다', 0), ('0.5초', 500), ('1초', 1000), ('2초', 2000),
             ('3초', 3000), ('4초', 4000), ('5초', 5000), ('10초', 10000),
             ('15초', 15000), ('20초', 20000), ('30초', 30000), ('40초', 40000),
             ('1분', 60000), ('2분', 120000), ('3분', 180000), ('4분', 240000),
             ('5분', 300000), ('10분', 600000),
-        ]:
+        ]
+
+        # ── KETI 전송 주기 ──────────────────────────────────────────────────
+        self._keti_send_interval_ms = 0
+        self._last_keti_send_time = None
+        self._keti_send_lock = threading.Lock()
+
+        self.comboBox_keti_send_interval = QComboBox(self.ui.groupBox_keti)
+        for label, ms in _INTERVAL_ITEMS:
             self.comboBox_keti_send_interval.addItem(label, ms)
         self.comboBox_keti_send_interval.setFixedHeight(22)
         self.comboBox_keti_send_interval.setStyleSheet('font-size: 8pt;')
         self.comboBox_keti_send_interval.currentIndexChanged.connect(self._on_keti_send_interval_changed)
 
-        from PySide6.QtWidgets import QLabel
-        lbl = QLabel('송신시간', self.ui.groupBox_keti)
-        lbl.setStyleSheet('font-size: 8pt;')
+        lbl_keti = QLabel('송신시간', self.ui.groupBox_keti)
+        lbl_keti.setStyleSheet('font-size: 8pt;')
         self.ui.horizontalLayout_menu_keti.insertWidget(0, self.comboBox_keti_send_interval)
-        self.ui.horizontalLayout_menu_keti.insertWidget(0, lbl)
+        self.ui.horizontalLayout_menu_keti.insertWidget(0, lbl_keti)
+
+        # ── Pintel 전송 주기 ─────────────────────────────────────────────────
+        self._pintel_send_interval_ms = 0
+        self._last_pintel_send_time = None
+        self._pintel_send_lock = threading.Lock()
+
+        self.comboBox_pintel_send_interval = QComboBox(self.ui.groupBox_pintel)
+        for label, ms in _INTERVAL_ITEMS:
+            self.comboBox_pintel_send_interval.addItem(label, ms)
+        self.comboBox_pintel_send_interval.setFixedHeight(22)
+        self.comboBox_pintel_send_interval.setStyleSheet('font-size: 8pt;')
+        self.comboBox_pintel_send_interval.currentIndexChanged.connect(self._on_pintel_send_interval_changed)
+
+        lbl_pintel = QLabel('송신시간', self.ui.groupBox_pintel)
+        lbl_pintel.setStyleSheet('font-size: 8pt;')
+        self.ui.horizontalLayout_menu_pintel.insertWidget(0, self.comboBox_pintel_send_interval)
+        self.ui.horizontalLayout_menu_pintel.insertWidget(0, lbl_pintel)
 
     def _on_keti_send_interval_changed(self, index):
         ms = self.comboBox_keti_send_interval.itemData(index)
@@ -696,6 +727,13 @@ class MainWindow(QMainWindow):
             self._keti_send_interval_ms = ms
             self._last_keti_send_time = None
         self.log(f'[KETI] 전송 주기: {self.comboBox_keti_send_interval.currentText()}')
+
+    def _on_pintel_send_interval_changed(self, index):
+        ms = self.comboBox_pintel_send_interval.itemData(index)
+        with self._pintel_send_lock:
+            self._pintel_send_interval_ms = ms
+            self._last_pintel_send_time = None
+        self.log(f'[Pintel] 전송 주기: {self.comboBox_pintel_send_interval.currentText()}')
 
     def _toggle_dual_save(self, checked: bool):
         all_clients = [self.client_pintel, self.client_keti,
