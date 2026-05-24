@@ -133,7 +133,7 @@ class MqttClientThread(QThread):
             if self.is_require_login:
                 self.client.username_pw_set(self.login_id , self.login_pw)
 
-            self.client.connect(self.ip, self.port)
+            self.client.connect(self.ip, self.port, keepalive=120)
             self.client.loop_start()
             return True
 
