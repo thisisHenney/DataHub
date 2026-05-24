@@ -80,14 +80,18 @@ class ClientVueron02(WebSocketWidget):
         self.parent.ui.progressBar_rx_vueron.setValue(0)
 
     def set_change_progressbar_tx(self, running=False):
+        other = getattr(self.parent, 'client_vueron_01', None)
+        effective = running or (other.tx_state if other else False)
         max_value = self.parent.ui.progressBar_tx_vueron.maximum()
-        if not running and max_value == 0:
+        if not effective and max_value == 0:
             self.parent.ui.progressBar_tx_vueron.setRange(0, 100)
-        elif running and max_value == 100:
+        elif effective and max_value == 100:
             self.parent.ui.progressBar_tx_vueron.setRange(0, 0)
 
     def set_change_progressbar_rx(self, running=False):
-        if not running:
+        other = getattr(self.parent, 'client_vueron_01', None)
+        effective = running or (other.rx_state if other else False)
+        if not effective:
             self.parent.ui.progressBar_rx_vueron.setRange(0, 100)
         else:
             self.parent.ui.progressBar_rx_vueron.setRange(0, 0)
@@ -129,8 +133,6 @@ class ClientVueron02(WebSocketWidget):
         self.parent.log(msg)
 
     def on_message_task(self, tuple_data):
-        self.set_change_progressbar_rx(True)
-
         message = tuple_data[0]
         empty = tuple_data[1]
 

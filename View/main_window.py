@@ -252,17 +252,28 @@ class MainWindow(QMainWindow):
         pass
 
     def _setup_progressbars(self):
-        tx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #f0ecf4; }"
-                    "QProgressBar::chunk { background-color: #ab47bc; width: 5px; margin: 1px; }")
-        rx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #ecf4ec; }"
-                    "QProgressBar::chunk { background-color: #43a047; width: 5px; margin: 1px; }")
-        for name in ['pintel', 'keti', 'vueron', 'nextfoam']:
+        h_tx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #f0ecf4; }"
+                      "QProgressBar::chunk { background-color: #ab47bc; width: 5px; margin: 1px; }")
+        h_rx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #ecf4ec; }"
+                      "QProgressBar::chunk { background-color: #43a047; width: 5px; margin: 1px; }")
+        # Vueron bars are vertical — use height instead of width for the chunk
+        v_tx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #f0ecf4; }"
+                      "QProgressBar::chunk { background-color: #ab47bc; height: 5px; margin: 1px; }")
+        v_rx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #ecf4ec; }"
+                      "QProgressBar::chunk { background-color: #43a047; height: 5px; margin: 1px; }")
+        for name in ['pintel', 'keti', 'nextfoam']:
             tx = getattr(self.ui, f'progressBar_tx_{name}', None)
             rx = getattr(self.ui, f'progressBar_rx_{name}', None)
             if tx:
-                tx.setStyleSheet(tx_style)
+                tx.setStyleSheet(h_tx_style)
             if rx:
-                rx.setStyleSheet(rx_style)
+                rx.setStyleSheet(h_rx_style)
+        tx = getattr(self.ui, 'progressBar_tx_vueron', None)
+        rx = getattr(self.ui, 'progressBar_rx_vueron', None)
+        if tx:
+            tx.setStyleSheet(v_tx_style)
+        if rx:
+            rx.setStyleSheet(v_rx_style)
 
     def log(self, msg):
         timestamp = datetime.now().strftime('%H:%M:%S')
