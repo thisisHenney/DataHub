@@ -490,7 +490,17 @@ class FileMergingThread(QThread):
         json_data = JsonRW()
         json_data.set_buffer(dict_for_json)
         json_data.save_compressed_json(self.app_info.keti_path/f'Send/{merged_filename}.json')
-        self.converter.write_vtk_file(self.app_info.keti_path/f'Send/VTK/{merged_filename}.vtk')
+        _vtk_final = self.app_info.keti_path / f'Send/VTK/{merged_filename}.vtk'
+        _vtk_tmp   = _vtk_final.with_suffix('.tmp')
+        self.converter.write_vtk_file(_vtk_tmp)
+        try:
+            _vtk_tmp.replace(_vtk_final)
+        except OSError:
+            try:
+                _vtk_tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
         # 직렬화는 한 번만 — get_buffer()는 json.dumps()를 매번 새로 수행하므로 변수에 캐시
         json_buffer = json_data.get_buffer()

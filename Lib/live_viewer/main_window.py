@@ -769,9 +769,11 @@ class MainWindow(QMainWindow):
                 continue
 
             if latest_path is None:
-                item.setText(0, base_name + ': Not Found')
-                self.view_dock.removeActor(self.actor_dict[base_name])
-                self._last_loaded.pop(base_name, None)
+                # 이전에 로드된 데이터가 있으면 actor를 유지(이전 값 재사용)
+                # 한 번도 데이터를 받지 못한 경우에만 actor를 제거
+                if base_name not in self._last_loaded:
+                    item.setText(0, base_name + ': Not Found')
+                    self.view_dock.removeActor(self.actor_dict[base_name])
                 continue
 
             if self._last_loaded.get(base_name) != latest_path:
