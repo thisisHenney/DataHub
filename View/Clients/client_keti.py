@@ -151,7 +151,7 @@ class ClientKeti(MqttWidget):
 
     def on_notice_task(self, msg):
         self.ui.lineEdit.setText(msg)
-        self.parent.log(msg)
+        self.parent.log(f'KETI >> {msg}')
 
     def on_message_task(self, tuple_data):
         topic = tuple_data[0]
