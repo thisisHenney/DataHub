@@ -168,12 +168,26 @@ class FileSaverThread(QThread):
         self.CompanyType = company_type
 
         self.stack = deque(maxlen=32)
+        self.dropped_count = 0  # stack이 maxlen을 넘겨 오래된 메시지가 버려진 누적 개수
+        self._stack_lock = threading.Lock()  # push()의 check-then-append와 run()의 popleft() 사이 race 방지
         self.is_running = True
         self.vtk_data_dict = vtk_data_dict
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
         self._event = threading.Event()
         self.dual_path_base = None   # None=OFF, Path=ON → received_data/received_data_YYYYMMDD_HHMMSS
+        self.save_enabled = True     # False면 개별 수신 데이터(json/vtk) 파일 저장을 생략. 통합 데이터에는 영향 없음.
         self._last_warn_time = 0.0
+
+    def push(self, item):
+        """stack에 메시지를 넣는다. 이미 maxlen만큼 차있으면 append 시 가장 오래된 항목이
+        조용히 버려지므로, 그 유실을 dropped_count로 집계해 UI에서 확인 가능하게 한다.
+        run()의 popleft()와 같은 락을 써서 check-then-append 사이에 소비 스레드가 끼어들어
+        실제로는 안 버려졌는데 유실로 잘못 세는 걸 방지한다."""
+        with self._stack_lock:
+            if len(self.stack) >= self.stack.maxlen:
+                self.dropped_count += 1
+            self.stack.append(item)
+        self.notify()
 
     def notify(self):
         self._event.set()
@@ -185,8 +199,10 @@ class FileSaverThread(QThread):
     def run(self):
         while self.is_running:
             try:
-                if self.stack:
-                    filepath, filename, json_data = self.stack.popleft()
+                with self._stack_lock:
+                    item = self.stack.popleft() if self.stack else None
+                if item is not None:
+                    filepath, filename, json_data = item
 
                     if isinstance(json_data, (str, bytes, bytearray)):
                         message = json_data
@@ -197,10 +213,12 @@ class FileSaverThread(QThread):
                     # json enqueue 를 vtk 변환보다 먼저 수행.
                     # backpressure blocking 시 saver 의 vtk 변환·dict 등록 자체가 자연스럽게
                     # writer 속도에 맞춰 throttle 되어 vtk_data_dict 무제한 누적을 방지.
-                    if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
-                        _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
-                    else:
-                        _enqueue_write('json', filepath / (filename + '.json'), json_data)
+                    # save_enabled=False여도 vtk_data_dict 등록(통합 데이터용)은 아래에서 계속 수행됨 — 개별 원본 파일만 생략.
+                    if self.save_enabled:
+                        if self.CompanyType == CompanyType.Vueron or self.CompanyType == CompanyType.Pintel:
+                            _enqueue_write('json_compressed', filepath/(filename + '.json'), json_data)
+                        else:
+                            _enqueue_write('json', filepath / (filename + '.json'), json_data)
 
                     self.converter.set_data_company(self.CompanyType)
                     valid = self.converter.load_array_from_reader(json_data)
@@ -216,13 +234,14 @@ class FileSaverThread(QThread):
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
 
-                    # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
-                    vtk_for_write = _deep_copy_vtk(vtk_result)
-                    _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_for_write)
+                    if self.save_enabled:
+                        # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
+                        vtk_for_write = _deep_copy_vtk(vtk_result)
+                        _enqueue_write('vtk', filepath/'VTK'/(filename + '.vtk'), vtk_for_write)
 
-                    # dual 저장 (동시 저장 버튼 ON 시)
+                    # dual 저장 (동시 저장 버튼 ON 시). save_enabled OFF면 원본 저장을 원치 않는 것이므로 dual도 생략.
                     dual = self.dual_path_base
-                    if dual is not None:
+                    if dual is not None and self.save_enabled:
                         try:
                             dual_filepath = dual / filepath.name
                             dual_filepath.mkdir(parents=True, exist_ok=True)

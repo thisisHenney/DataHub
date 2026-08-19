@@ -139,7 +139,9 @@ class MqttClientThread(QThread):
             if self.is_require_login:
                 self.client.username_pw_set(self.login_id , self.login_pw)
 
-            self.client.connect(self.ip, self.port, keepalive=120)
+            # keepalive를 짧게 잡아야 LTE 등 불안정한 네트워크에서 "조용히 죽은" 연결을
+            # 빨리 감지해 재접속 로직이 돌 수 있음 (기존 120s는 감지까지 최대 2분 가까이 걸림)
+            self.client.connect(self.ip, self.port, keepalive=20)
             self.client.loop_start()
             return True
 

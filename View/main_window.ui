@@ -126,7 +126,7 @@ QGroupBox::title {
          <item>
           <widget class="QPushButton" name="pushButton_setting_datahub">
            <property name="enabled">
-            <bool>false</bool>
+            <bool>true</bool>
            </property>
            <property name="font">
             <font>

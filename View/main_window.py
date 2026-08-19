@@ -9,11 +9,12 @@ import sys
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from PySide6.QtCore import QTimer, QPoint, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QTimer, QPoint, Qt, QThread, Signal
 from PySide6.QtGui import QGuiApplication, QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QLabel, QPushButton, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QMessageBox
 from Lib.File import make_dir, FileMergingThread, FileWriterThread, get_writer_queue_size, clear_writer_queue
 from View.main_window_ui import Ui_MainWindow
+from View.setting_dialog import SettingDialog
 
 
 class _ClearDataThread(QThread):
@@ -118,6 +119,8 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        self._status_hint_widgets = {}  # widget -> statusbar에 표시할 문구 (마우스 hover 시)
+
         self.vtk_data_dict_pintel = {}
         self.vtk_data_dict_keti = {}
         self.vtk_data_dict_vueron = {}
@@ -136,6 +139,8 @@ class MainWindow(QMainWindow):
         self._last_keti_data = None
         self._last_keti_data_lock = threading.Lock()
         self._use_data_cache = True
+
+        self._always_on_top_pref = False  # 설정값(순간적인 always-on-top 해제와 구분하기 위한 기준값)
 
         self.is_reconnect = False
         self._clear_thread = None
@@ -180,6 +185,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(f'DataHub-v1.2-[{self.app_info.data_path}]')
 
+        self.load_app_settings()
+
     def make_file_merging_thread(self):
         # target_time을 0.2초 grid로 정렬하여 jitter 흡수
         now = datetime.now()
@@ -210,7 +217,7 @@ class MainWindow(QMainWindow):
         self.ui.pushButton_disconnect_all.clicked.connect(self.clicked_disconnect_all)
 
         self.ui.pushButton_open_received_path_datahub.clicked.connect(self.clicked_open_received_path_datahub)
-        # self.ui.pushButton_setting_datahub.clicked.connect(self.clicked_)
+        self.ui.pushButton_setting_datahub.clicked.connect(self.clicked_setting_datahub)
         self.ui.checkBox_auto_reconnect.stateChanged.connect(self.onStateChanged_auto_reconnect)
 
         self.ui.pushButton_create_sim_data.clicked.connect(self.clicked_create_sim_data)
@@ -232,6 +239,16 @@ class MainWindow(QMainWindow):
             'background-color: #8c5a5a; color: white; border: 1px solid #7a4d4d;')
         self.ui.pushButton_run_live_viewer.setStyleSheet(
             'background-color: #6b5b8a; color: white; border: 1px solid #5c4d78;')
+
+        # 왼쪽 메뉴에서 연결/연결 해제/Live Viewer를 제외한 나머지 버튼은 강조색 없이 회색으로 통일
+        _gray_button_style = 'background-color: #7f8c9b; color: white; border: 1px solid #6b7787;'
+        for btn in (self.ui.pushButton_open_received_path_datahub,
+                    self.ui.pushButton_setting_datahub,
+                    self.ui.pushButton_create_sim_data,
+                    self.ui.pushButton_show_log,
+                    self.ui.pushButton_open_solver_data_log,
+                    self.ui.pushButton_open_solver_data_log_2):
+            btn.setStyleSheet(_gray_button_style)
 
         self._setup_progressbars()
         self._setup_groupbox_sizing()
@@ -304,6 +321,8 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             self.end()
             e.accept()
+            # quitOnLastWindowClosed를 껐으므로(always-on-top 토글용) 실제 종료는 명시적으로 처리
+            QApplication.instance().quit()
         else:
             e.ignore()
 
@@ -342,6 +361,19 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_clear_thread') and self._clear_thread is not None:
             self._clear_thread.wait(2000)
 
+    def _register_status_hint(self, widget, text):
+        """widget에 마우스를 올리면 text를 StatusBar에 표시, 벗어나면 지운다."""
+        self._status_hint_widgets[widget] = text
+        widget.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if obj in self._status_hint_widgets:
+            if event.type() == QEvent.Type.Enter:
+                self.ui.statusbar.showMessage(self._status_hint_widgets[obj])
+            elif event.type() == QEvent.Type.Leave:
+                self.ui.statusbar.clearMessage()
+        return super().eventFilter(obj, event)
+
     def _setup_merge_info_ui(self):
         from PySide6.QtWidgets import QGridLayout, QFrame
 
@@ -360,40 +392,43 @@ class MainWindow(QMainWindow):
         grid.setHorizontalSpacing(8)
         grid.setVerticalSpacing(12)
 
-        lbl = QLabel('Now')
-        lbl.setStyleSheet(style_title)
-        grid.addWidget(lbl, 0, 0)
-        self.label_merge_now = QLabel('-')
-        self.label_merge_now.setStyleSheet(style_value)
-        grid.addWidget(self.label_merge_now, 0, 1)
+        def _add_row(row, title, tooltip):
+            status_text = f'{title}: {tooltip.splitlines()[0]}'
+            lbl = QLabel(title)
+            lbl.setStyleSheet(style_title)
+            lbl.setToolTip(tooltip)
+            self._register_status_hint(lbl, status_text)
+            grid.addWidget(lbl, row, 0)
+            value = QLabel('-')
+            value.setStyleSheet(style_value)
+            value.setToolTip(tooltip)
+            self._register_status_hint(value, status_text)
+            grid.addWidget(value, row, 1)
+            return value
 
-        lbl = QLabel('Target')
-        lbl.setStyleSheet(style_title)
-        grid.addWidget(lbl, 1, 0)
-        self.label_merge_target = QLabel('-')
-        self.label_merge_target.setStyleSheet(style_value)
-        grid.addWidget(self.label_merge_target, 1, 1)
-
-        lbl = QLabel('Delay')
-        lbl.setStyleSheet(style_title)
-        grid.addWidget(lbl, 2, 0)
-        self.label_merge_delay = QLabel('-')
-        self.label_merge_delay.setStyleSheet(style_value)
-        grid.addWidget(self.label_merge_delay, 2, 1)
-
-        lbl = QLabel('Network')
-        lbl.setStyleSheet(style_title)
-        grid.addWidget(lbl, 3, 0)
-        self.label_merge_data = QLabel('-')
-        self.label_merge_data.setStyleSheet(style_value)
-        grid.addWidget(self.label_merge_data, 3, 1)
-
-        lbl = QLabel('Thread')
-        lbl.setStyleSheet(style_title)
-        grid.addWidget(lbl, 4, 0)
-        self.label_merge_thread = QLabel('-')
-        self.label_merge_thread.setStyleSheet(style_value)
-        grid.addWidget(self.label_merge_thread, 4, 1)
+        self.label_merge_now = _add_row(0, 'Now', '현재 시각 (1초마다 갱신)')
+        self.label_merge_target = _add_row(
+            1, 'Target', '이번 통합(union) 병합 사이클의 목표 시각 (0.2초 그리드로 정렬됨)')
+        self.label_merge_delay = _add_row(
+            2, 'Delay',
+            '목표 시각(Target) 대비 병합이 실제로 끝난 시각의 지연(초).\n'
+            '값이 커지거나 계속 튀면 병합/디스크 쓰기가 밀리고 있다는 뜻')
+        self.label_merge_data = _add_row(
+            3, 'Network',
+            '아직 병합되지 않고 대기 중인 소스별(Pintel/KETI/Vueron) 데이터 개수')
+        self.label_merge_hdd = _add_row(
+            4, 'HDD',
+            '소스별 개별(원본) 데이터 저장 상태.\n'
+            'OK=정상, !N=그 소스의 저장 대기열이 N개 밀림, -=설정에서 저장을 꺼둔 소스.\n'
+            '[Writer!N]이 붙으면 모든 소스가 공유하는 파일쓰기 큐 자체가 N개 밀린 것')
+        self.label_merge_dropped = _add_row(
+            5, 'Dropped',
+            '소스별 저장 대기열이 가득 차서(용량 32개) 오래된 메시지가 버려진 누적 개수.\n'
+            'MQTT/네트워크 큐 적체로 인한 실제 데이터 유실 지표 (저장 ON/OFF와 무관하게 집계)')
+        self.label_merge_thread = _add_row(
+            6, 'Thread',
+            '통합 데이터 병합 스레드 풀 사용 현황 (사용 중 / 전체 3개).\n'
+            '계속 꽉 차 있으면(3/3) 병합이 밀려서 일부 사이클이 스킵되고 있다는 뜻')
 
         layout.addLayout(grid)
         layout.addItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding))
@@ -430,6 +465,7 @@ class MainWindow(QMainWindow):
             return
 
         self.btn_clear.setEnabled(False)
+        self.btn_clear.setText('Deleting Data')
         self._set_data_pause(True)
 
         # saver가 stop 직전에 enqueue한 writer 작업을 비워서 삭제와의 race 방지
@@ -452,8 +488,7 @@ class MainWindow(QMainWindow):
             self._last_keti_data = None
 
         # saver stack 비우기
-        for client in [self.client_pintel, self.client_keti,
-                       self.client_vueron_01, self.client_vueron_02]:
+        for client in self._all_source_clients():
             if hasattr(client, 'savers'):
                 for saver in client.savers:
                     saver.stack.clear()
@@ -475,6 +510,7 @@ class MainWindow(QMainWindow):
 
     def _on_clear_finished(self, deleted, total_size):
         self.progressBar_clear.setVisible(False)
+        self.btn_clear.setText('Clear Data')
         self.btn_clear.setEnabled(True)
         self._set_data_pause(False)
         self.log(f'[Clear] {deleted} files ({self._format_size(total_size)}) deleted from {self.app_info.data_path}')
@@ -746,9 +782,80 @@ class MainWindow(QMainWindow):
             self._last_pintel_send_time = None
         self.log(f'[Pintel] 전송 주기: {self.comboBox_pintel_send_interval.currentText()}')
 
+    def save_app_settings(self):
+        config_path = self.app_info.settings_path / 'app_settings.json'
+        try:
+            make_dir(self.app_info.settings_path)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'always_on_top': self.get_always_on_top(),
+                    'save_pintel': self.get_source_save_enabled('pintel'),
+                    'save_keti': self.get_source_save_enabled('keti'),
+                    'save_vueron': self.get_source_save_enabled('vueron'),
+                }, f)
+        except Exception as e:
+            self.log(f'[설정] 저장 실패: {e}')
+
+    def load_app_settings(self):
+        config_path = self.app_info.settings_path / 'app_settings.json'
+        try:
+            if config_path.is_file():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                self.set_always_on_top(cfg.get('always_on_top', False))
+                self.set_source_save_enabled('pintel', cfg.get('save_pintel', True))
+                self.set_source_save_enabled('keti', cfg.get('save_keti', True))
+                self.set_source_save_enabled('vueron', cfg.get('save_vueron', True))
+        except Exception as e:
+            self.log(f'[설정] 로드 실패: {e}')
+
+    def get_always_on_top(self) -> bool:
+        return self._always_on_top_pref
+
+    def set_always_on_top(self, checked: bool):
+        self._always_on_top_pref = checked
+        # setWindowFlags() 호출 즉시 창이 hide()되어 isVisible()이 False로 바뀌므로,
+        # 반드시 flags 변경 "전" 가시성을 기억해뒀다가 그 값으로 재표시 여부를 판단해야 함.
+        was_visible = self.isVisible()
+        flags = self.windowFlags()
+        if checked:
+            flags |= Qt.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        if was_visible:
+            self.show()  # setWindowFlags()는 창을 숨기므로 이미 떠 있던 경우 다시 표시해야 함
+        self.log(f'[설정] 프로그램 항상 위에 표시 {"ON" if checked else "OFF"}')
+
+    def get_source_save_enabled(self, company: str) -> bool:
+        """company: 'pintel' | 'keti' | 'vueron'. 저장 스레드가 아직 없으면 기본값 True."""
+        clients = self._source_clients(company)
+        for client in clients:
+            if hasattr(client, 'savers') and client.savers:
+                return client.savers[0].save_enabled
+        return True
+
+    def set_source_save_enabled(self, company: str, checked: bool):
+        """company: 'pintel' | 'keti' | 'vueron'. 개별(원본) 수신 데이터 저장 ON/OFF. 통합 데이터는 영향받지 않음."""
+        for client in self._source_clients(company):
+            if hasattr(client, 'savers'):
+                for saver in client.savers:
+                    saver.save_enabled = checked
+        self.log(f'[{company.upper()}] 개별 수신 데이터 저장 {"ON" if checked else "OFF"} (통합 데이터는 항상 저장됨)')
+
+    def _source_clients(self, company: str):
+        return {
+            'pintel': [self.client_pintel],
+            'keti': [self.client_keti],
+            'vueron': [self.client_vueron_01, self.client_vueron_02],
+        }.get(company, [])
+
+    def _all_source_clients(self):
+        return [self.client_pintel, self.client_keti,
+                self.client_vueron_01, self.client_vueron_02]
+
     def _toggle_dual_save(self, checked: bool):
-        all_clients = [self.client_pintel, self.client_keti,
-                       self.client_vueron_01, self.client_vueron_02]
+        all_clients = self._all_source_clients()
         if checked:
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
             dual_base = self.app_info.data_path.parent / f'received_data_{ts}'
@@ -781,8 +888,7 @@ class MainWindow(QMainWindow):
 
     def _set_data_pause(self, pause):
         """pause=True: saver 스레드 중단, False: 재시작"""
-        for client in [self.client_pintel, self.client_keti,
-                       self.client_vueron_01, self.client_vueron_02]:
+        for client in self._all_source_clients():
             if hasattr(client, 'savers'):
                 for saver in client.savers:
                     if pause:
@@ -802,6 +908,57 @@ class MainWindow(QMainWindow):
         self.label_merge_data.setText(f'P:{p}  K:{k}  V:{v}')
         self.label_merge_thread.setText(f'{busy} / {len(self.merging_thread_list)}')
         self.label_merge_now.setText(datetime.now().strftime('%H:%M:%S.%f')[:-3])
+        self.label_merge_hdd.setText(self._get_hdd_status_text())
+        self._update_dropped_label()
+
+    # HDD(개별 원본 파일) 저장이 밀리고 있는지 표시. 설정에서 저장을 꺼둔 소스는 '-'.
+    # 임계값은 Lib/File.py의 콘솔 경고 임계값(saver.stack>=10, writer 큐>=50)과 동일하게 맞춤.
+    _HDD_BACKLOG_WARN = 10
+    _WRITER_QUEUE_WARN = 50
+
+    def _hdd_status_for(self, company: str) -> str:
+        # writer 큐는 소스 공용이라 여기서 같이 보면 다른 소스의 적체를 이 소스 탓으로 오인함.
+        # 그래서 공용 큐 상태는 여기서 빼고, _get_hdd_status_text()에서 별도로 표시한다.
+        if not self.get_source_save_enabled(company):
+            return '-'
+        max_backlog = 0
+        for client in self._source_clients(company):
+            if hasattr(client, 'savers'):
+                for saver in client.savers:
+                    max_backlog = max(max_backlog, len(saver.stack))
+        if max_backlog >= self._HDD_BACKLOG_WARN:
+            return f'!{max_backlog}'
+        return 'OK'
+
+    def _get_hdd_status_text(self):
+        p = self._hdd_status_for('pintel')
+        k = self._hdd_status_for('keti')
+        v = self._hdd_status_for('vueron')
+        text = f'P:{p}  K:{k}  V:{v}'
+        qlen = get_writer_queue_size()
+        if qlen >= self._WRITER_QUEUE_WARN:
+            text += f'  [Writer!{qlen}]'
+        return text
+
+    # 소스별 saver 대기열(stack, maxlen=32)이 넘쳐서 오래된 메시지가 버려진 누적 개수.
+    # save_enabled(저장 ON/OFF) 여부와 무관하게 항상 집계 — MQTT/네트워크 큐 적체 자체를 보기 위함.
+    def _dropped_count_for(self, company: str) -> int:
+        total = 0
+        for client in self._source_clients(company):
+            if hasattr(client, 'savers'):
+                for saver in client.savers:
+                    total += saver.dropped_count
+        return total
+
+    def _update_dropped_label(self):
+        p = self._dropped_count_for('pintel')
+        k = self._dropped_count_for('keti')
+        v = self._dropped_count_for('vueron')
+        self.label_merge_dropped.setText(f'P:{p}  K:{k}  V:{v}')
+        if p or k or v:
+            self.label_merge_dropped.setStyleSheet('font-size: 9pt; font-weight: bold; color: #e53935;')
+        else:
+            self.label_merge_dropped.setStyleSheet('font-size: 9pt; font-weight: bold; color: #2c3e50;')
 
     def _on_merge_info(self, info):
         parts = info.split(' | ')
@@ -891,6 +1048,10 @@ class MainWindow(QMainWindow):
 
     def clicked_setting_keti(self):
         self.log('Setting KETI (not implemented)')
+
+    def clicked_setting_datahub(self):
+        dialog = SettingDialog(self)
+        dialog.exec()
 
     def clicked_open_received_path_nextfoam(self):
         self.log('Open NEXTfoam received folder')

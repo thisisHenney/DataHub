@@ -101,7 +101,7 @@ class Ui_MainWindow(object):
 
         self.pushButton_setting_datahub = QPushButton(self.groupBox_7)
         self.pushButton_setting_datahub.setObjectName(u"pushButton_setting_datahub")
-        self.pushButton_setting_datahub.setEnabled(False)
+        self.pushButton_setting_datahub.setEnabled(True)
         self.pushButton_setting_datahub.setFont(font2)
 
         self.verticalLayout_7.addWidget(self.pushButton_setting_datahub)

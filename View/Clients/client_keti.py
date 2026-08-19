@@ -193,8 +193,7 @@ class ClientKeti(MqttWidget):
         idx = self.count_thread % self.num_thread
         self.count_thread = (idx + 1) % self.num_thread
         saver = self.savers[idx]
-        saver.stack.append((self.app_info.keti_path, filename, json_data))
-        saver.notify()
+        saver.push((self.app_info.keti_path, filename, json_data))
 
     def send_message_task(self, topic, msg):
         self.set_change_progressbar_tx(True)

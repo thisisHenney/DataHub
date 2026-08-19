@@ -56,6 +56,10 @@ class Main:
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    # MainWindow의 always-on-top 토글은 setWindowFlags()로 창을 잠깐 hide()했다 다시 보여주는데,
+    # 기본값(True)이면 그 순간 "마지막 창이 닫힘"으로 인식돼 앱이 그대로 종료돼버림.
+    # 종료는 MainWindow.closeEvent()에서 명시적으로 app.quit()을 호출해 처리한다.
+    app.setQuitOnLastWindowClosed(False)
 
     # 스타일시트 적용 (파일이 있으면 적용, 없으면 기본 테마)
     style_path = Path(os.path.dirname(__file__)) / 'settings' / 'style.qss'
