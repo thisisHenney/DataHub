@@ -285,6 +285,7 @@ class VtkJsonConverter:
 
         vueron_num_array_list = []
         vueron_v_array_list = []
+        vueron_v_coverage_list = []
         for point_cloud in vueron_data:
             x_edges = base_origin[0] + np.arange(nx + 1) * dx
             y_edges = base_origin[1] + np.arange(ny + 1) * dy
@@ -312,6 +313,7 @@ class VtkJsonConverter:
             avg_vel = np.zeros_like(sum_vel)
             np.divide(sum_vel, counts_flat[:, None], out=avg_vel, where=counts_flat[:, None] > 0)
             vueron_v_array_list.append(avg_vel)
+            vueron_v_coverage_list.append(counts_flat)
 
         if vueron_num_array_list:
             vueron_num_array = self._do_average_array(vueron_num_array_list)
@@ -319,7 +321,7 @@ class VtkJsonConverter:
             all_density_arrays.append(vueron_d_array)
             self._append_cell_data_to_image(base_grid, 'vueron_density', vueron_d_array, nx, ny)
 
-            vueron_v_array = self._do_average_array(vueron_v_array_list)
+            vueron_v_array = self._do_average_vector_array(vueron_v_array_list, vueron_v_coverage_list)
             all_velocity_arrays.append(vueron_v_array)
             self._append_cell_data_to_image(base_grid, 'vueron_velocity', vueron_v_array, nx, ny)
 
@@ -370,7 +372,9 @@ class VtkJsonConverter:
         all_density_array = self._do_average_array(all_density_arrays)
         self._append_cell_data_to_image(base_grid, 'density', all_density_array, nx, ny)
 
-        all_velocity_array = self._do_average_array(all_velocity_arrays)
+        # all_density_arrays는 all_velocity_arrays와 소스별로 1:1 대응(같은 순서로 append됨)하고,
+        # density>0이 "그 소스가 이 셀을 실제로 커버했다"는 뜻이므로 속도 벡터의 커버리지 판단에 그대로 쓴다.
+        all_velocity_array = self._do_average_vector_array(all_velocity_arrays, all_density_arrays)
         self._append_cell_data_to_image(base_grid, 'velocity', all_velocity_array, nx, ny)
 
         self.vtk_data = base_grid
@@ -771,10 +775,24 @@ class VtkJsonConverter:
         return lut
 
     def _do_average_array(self, array_list):
+        # 밀도처럼 항상 0 이상이고 "0 = 데이터 없음"인 스칼라 전용. 속도처럼 부호가 있는
+        # 값에는 쓰면 안 됨 (음수 성분이 '데이터 없음'으로 오판되어 0으로 눌려버림) —
+        # 그런 경우엔 _do_average_vector_array()를 쓸 것.
         stacked = np.stack(array_list, axis=0)
         mask = stacked > 0
         sum_vals = stacked.sum(axis=0)
         count_vals = mask.sum(axis=0)
+        combined = np.zeros_like(sum_vals)
+        np.divide(sum_vals, count_vals, out=combined, where=(count_vals > 0))
+        return combined
+
+    def _do_average_vector_array(self, vector_list, coverage_list):
+        """속도처럼 부호가 있는 벡터 평균용. 각 소스의 유효성은 벡터 값의 부호가 아니라
+        coverage_list(같은 셀 순서의 밀도/카운트 배열, 값>0이면 그 소스가 이 셀을 커버)로 판단한다."""
+        stacked = np.stack(vector_list, axis=0).astype(np.float64)
+        coverage = np.stack(coverage_list, axis=0).reshape(stacked.shape[:-1]) > 0
+        sum_vals = stacked.sum(axis=0)
+        count_vals = coverage.sum(axis=0)[..., np.newaxis]
         combined = np.zeros_like(sum_vals)
         np.divide(sum_vals, count_vals, out=combined, where=(count_vals > 0))
         return combined
