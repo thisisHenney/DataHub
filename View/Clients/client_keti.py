@@ -66,8 +66,9 @@ class ClientKeti(MqttWidget):
         self.set_ip_port(KETI_IP, KETI_PORT)
         self.set_require_login(True)
         self.set_id_pw('keti', '6CUBUxzGCvYYiEc')
-        # 실제 연결 시 주석 해제
-        self.set_tls(Path(self.parent.app_info.app_path/'Data'/'CA'/'ca.crt'))
+        # 실제(운영) 서버 연결 시에만 주석 해제 — TLS가 없는 테스트 브로커에 접속하면
+        # SSLEOFError(EOF occurred in violation of protocol)로 접속이 거부됨
+        # self.set_tls(Path(self.parent.app_info.app_path/'Data'/'CA'/'ca.crt'))
 
         self.set_topics(KETI_TOPIC)
 
@@ -113,6 +114,8 @@ class ClientKeti(MqttWidget):
         self.set_connected_ui()
 
         self.set_defaults_progressbar()
+        self.parent.remember_connected_ip(self)
+        self.parent.save_network_settings()
 
         self.checking_timer.start()
 

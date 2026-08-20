@@ -16,7 +16,7 @@ from Lib.Converter.vtk_json_converter import VtkJsonConverter, CompanyType
 
 VUERON_IP = '192.168.10.151'
 VUERON_PORT = 10205
-VUERON_PATH='/ws/v1/mbembo/area/2'
+VUERON_PATH='/ws/v1/mbembo/area/1'
 # 확인용: ws://192.168.10.212:10205/ws/v1/mbembo/area/2
 
 
@@ -101,6 +101,8 @@ class ClientVueron01(WebSocketWidget):
         self.set_connected_ui()
 
         self.set_defaults_progressbar()
+        self.parent.remember_connected_ip(self)
+        self.parent.save_network_settings()
 
     def on_disconnected_task(self):
         self.ui.lineEdit.setText(f'Disconnected')
@@ -153,15 +155,17 @@ class ClientVueron01(WebSocketWidget):
                 pass
             return
 
+        # payload.areaID는 장비가 보고하는 값이라 접속 IP(.151)와 항상 일치한다는 보장이
+        # 없음(Pintel의 common[0]과 같은 문제) — 이 소스는 항상 '0001' 고정 접두어로 저장해서
+        # Live Viewer의 'Vueron 1'과 무조건 맞아떨어지게 한다.
         timestamp_data = json_data.get('trID')
-        id_data = json_data.get('payload.areaID')
-        if not timestamp_data or id_data is None:
-            self.parent.log('Vueron_01 >> Missing trID/areaID')
+        if not timestamp_data:
+            self.parent.log('Vueron_01 >> Missing trID')
             return
         try:
             dt = datetime.strptime(timestamp_data, "%Y%m%d%H%M%S%f")
             dt_korean = dt + timedelta(hours=9)
-            filename = (f"{id_data:04d}_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
+            filename = ("0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
         except (ValueError, TypeError):
             self.parent.log('Vueron_01 >> Invalid trID format')
             return

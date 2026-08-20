@@ -76,7 +76,7 @@ class Ui_Form_Mqtt(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.port_comboBox.sizePolicy().hasHeightForWidth())
         self.port_comboBox.setSizePolicy(sizePolicy)
-        self.port_comboBox.setMinimumSize(QSize(70, 0))
+        self.port_comboBox.setMinimumSize(QSize(95, 0))
         self.port_comboBox.setFont(font2)
         self.port_comboBox.setEditable(True)
 

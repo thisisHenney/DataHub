@@ -65,7 +65,7 @@ class Ui_Form_WebSocket(object):
         self.port_comboBox.addItem("")
         self.port_comboBox.addItem("")
         self.port_comboBox.setObjectName(u"port_comboBox")
-        self.port_comboBox.setMinimumSize(QSize(70, 0))
+        self.port_comboBox.setMinimumSize(QSize(100, 0))
         self.port_comboBox.setMaximumSize(QSize(16777215, 16777215))
         self.port_comboBox.setFont(font2)
         self.port_comboBox.setEditable(True)

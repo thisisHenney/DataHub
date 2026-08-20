@@ -9,10 +9,11 @@ import vtk
 from vtkmodules.vtkCommonCore import vtkLookupTable
 from vtkmodules.vtkCommonDataModel import vtkDataObject, vtkPlane
 from vtkmodules.vtkCommonTransforms import vtkTransform
-from vtkmodules.vtkFiltersCore import vtkThreshold
+from vtkmodules.vtkFiltersCore import vtkThreshold, vtkCellCenters, vtkGlyph3D
 from vtkmodules.vtkFiltersGeneral import vtkTransformFilter
 from vtkmodules.vtkFiltersGeometry import vtkDataSetSurfaceFilter, vtkGeometryFilter
 from vtkmodules.vtkFiltersParallel import vtkRemoveGhosts
+from vtkmodules.vtkFiltersSources import vtkArrowSource
 
 from PySide6.QtCore import QThread, QMimeData, QTimer, Qt, QRect, Signal
 from PySide6.QtGui import QDropEvent, QDragEnterEvent, QPen, QColor
@@ -137,8 +138,8 @@ from PySide6.QtWidgets import QApplication
 COMMON_PATH = Path(f'{Path.home()}/AppData/Local/NEXTfoam/DataHub/v1.2/received_data')
 PINTEL_VTK_PATH = COMMON_PATH / 'pintel/VTK'
 KETI_VTK_PATH = COMMON_PATH / 'keti/VTK'
-VUERON1_VTK_PATH = COMMON_PATH / 'vueron_02/VTK'
-VUERON2_VTK_PATH = COMMON_PATH / 'vueron_01/VTK'
+VUERON1_VTK_PATH = COMMON_PATH / 'vueron_01/VTK'
+VUERON2_VTK_PATH = COMMON_PATH / 'vueron_02/VTK'
 UNION_VTK_PATH = COMMON_PATH / 'keti/Send/VTK'
 
 # 지도 파일별 VTK 좌표계 정렬 파라미터
@@ -338,7 +339,9 @@ class MainWindow(QMainWindow):
         self._map_opacity_slider.valueChanged.connect(self._on_map_opacity_changed)
 
     def init_vtk_actor(self):
-        # Pintel
+        # Pintel — common[0]은 상황에 따라 바뀌는 값이라 안 쓰고, common[1](카메라 번호)로
+        # 카메라별 소스를 구분한다. 파일명 접두어가 카메라 번호 그 자체(0001~0064)이므로
+        # ids도 100 오프셋 없이 카메라 번호를 그대로 쓴다.
         for i in range(1, 65):
             reader = vtkDataSetReader()
             reader.SetFileName('')
@@ -432,31 +435,62 @@ class MainWindow(QMainWindow):
         self.actor_dict['KETI'] = actor
 
         # Union
-        for i, field in [(1, 'density'), (2, 'pintel_density'), (3, 'keti_density'), (4, 'vueron_density')]:
+        for i, field, scalar_range in [(1, 'density', (0, 10)), (2, 'pintel_density', (0, 10)),
+                                        (3, 'keti_density', (0, 10)), (4, 'vueron_density', (0, 10)),
+                                        (5, 'velocity', (0, 5))]:
             reader = vtkDataSetReader()
             reader.SetFileName('')
             self.reader_dict[f'Union {i}'] = reader
 
-            # ths = vtkThreshold()
-            # ths.SetInputConnection(reader.GetOutputPort())
-            # ths.SetThresholdFunction(ths.THRESHOLD_BETWEEN)
-            # ths.SetLowerThreshold(0.1)
-            # ths.SetUpperThreshold(20)
-            # ths.SetInputArrayToProcess(0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, field)
+            if field == 'velocity':
+                # 히트맵 대신 화살표 글리프: 셀 중심에 점을 만들고(cell data -> point data
+                # 로 옮겨짐) 그 벡터로 화살표를 방향/크기에 맞춰 그린다.
+                cell_centers = vtkCellCenters()
+                cell_centers.SetInputConnection(reader.GetOutputPort())
 
-            # mapper = vtkCompositePolyDataMapper()
-            mapper = vtkDataSetMapper()
-            mapper.SetInputConnection(reader.GetOutputPort())
-            mapper.ScalarVisibilityOn()
+                arrow_source = vtkArrowSource()
+                arrow_source.SetTipLength(0.4)
+                arrow_source.SetTipRadius(0.15)
+                arrow_source.SetShaftRadius(0.05)
 
-            mapper.SetScalarModeToUseCellFieldData()
-            mapper.SelectColorArray(field)
-            mapper.SetColorModeToMapScalars()
-            mapper.SetScalarRange(0, 10)
-            if i == 4:
-                mapper.SetLookupTable(self._make_white_lut())
-            else:
+                glyph = vtkGlyph3D()
+                glyph.SetSourceConnection(arrow_source.GetOutputPort())
+                glyph.SetInputConnection(cell_centers.GetOutputPort())
+                glyph.SetInputArrayToProcess(1, 0, 0, vtkDataObject.FIELD_ASSOCIATION_POINTS, field)
+                glyph.SetVectorModeToUseVector()
+                glyph.SetScaleModeToScaleByVector()
+                glyph.SetScaleFactor(0.5)  # 그리드 spacing(2m) 기준, 5m/s가 대략 셀 하나 길이가 되도록
+                glyph.OrientOn()
+
+                mapper = vtkPolyDataMapper()
+                mapper.SetInputConnection(glyph.GetOutputPort())
+                mapper.ScalarVisibilityOn()
+                mapper.SetScalarModeToUsePointFieldData()
+                mapper.SelectColorArray(field)
+                mapper.SetColorModeToMapScalars()
+                mapper.SetScalarRange(*scalar_range)
                 mapper.SetLookupTable(self.rainbow_lut)
+            else:
+                # ths = vtkThreshold()
+                # ths.SetInputConnection(reader.GetOutputPort())
+                # ths.SetThresholdFunction(ths.THRESHOLD_BETWEEN)
+                # ths.SetLowerThreshold(0.1)
+                # ths.SetUpperThreshold(20)
+                # ths.SetInputArrayToProcess(0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, field)
+
+                # mapper = vtkCompositePolyDataMapper()
+                mapper = vtkDataSetMapper()
+                mapper.SetInputConnection(reader.GetOutputPort())
+                mapper.ScalarVisibilityOn()
+
+                mapper.SetScalarModeToUseCellFieldData()
+                mapper.SelectColorArray(field)
+                mapper.SetColorModeToMapScalars()
+                mapper.SetScalarRange(*scalar_range)
+                if i == 4:
+                    mapper.SetLookupTable(self._make_white_lut())
+                else:
+                    mapper.SetLookupTable(self.rainbow_lut)
 
             actor = vtkActor()
             actor.SetMapper(mapper)
@@ -506,7 +540,7 @@ class MainWindow(QMainWindow):
             ('Pintel', [f'Pintel {i}' for i in range(1, 65)], False),
             ('KETI', ['KETI'], False),
             ('Vueron', ['Vueron 1', 'Vueron 2'], False),
-            ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4'], False),
+            ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4', 'Union 5'], False),
         ]
 
         self._group_items = {}
@@ -738,7 +772,7 @@ class MainWindow(QMainWindow):
             elif base_name == 'KETI':
                 folder, ids = KETI_VTK_PATH, 1
             elif base_name[:6] == 'Pintel':
-                folder, ids = PINTEL_VTK_PATH, 100+int(base_name[7:])
+                folder, ids = PINTEL_VTK_PATH, int(base_name[7:])
             elif base_name == 'Vueron 1':
                 folder, ids = VUERON1_VTK_PATH, 1
             elif base_name == 'Vueron 2':

@@ -132,7 +132,7 @@ class MainWindow(QMainWindow):
         # 각 소스의 송신 주기가 길어 merge 사이클마다 데이터가 없을 수 있음.
         # 신규 데이터 도착 전까지 직전 데이터를 재사용해 union이 비지 않게 함.
         # 체크박스로 ON/OFF 가능 (기본 ON, _setup_backup_ui에서 체크박스 생성 시 확정)
-        self._last_pintel_data = None
+        self._last_pintel_data_by_id = {}  # 카메라 번호별 직전 데이터 (일부 카메라만 신규 도착해도 나머지는 유지)
         self._last_pintel_data_lock = threading.Lock()
         self._last_vueron_data = None
         self._last_vueron_data_lock = threading.Lock()
@@ -184,8 +184,6 @@ class MainWindow(QMainWindow):
         self.ui.groupBox_2.setTitle('< Log >')
 
         self.setWindowTitle(f'DataHub-v1.2-[{self.app_info.data_path}]')
-
-        self.load_app_settings()
 
     def make_file_merging_thread(self):
         # target_time을 0.2초 grid로 정렬하여 jitter 흡수
@@ -266,7 +264,12 @@ class MainWindow(QMainWindow):
         self._setup_keti_send_interval()
 
     def _setup_groupbox_sizing(self):
-        pass
+        # 왼쪽 "< Menu >" 그룹박스는 가로 정책을 Fixed로 고정해, 창을 최대화해도
+        # 남는 공간을 흡수해 늘어나지 않고 항상 자기 내용물 크기(sizeHint)만큼만 차지하게 함.
+        from PySide6.QtWidgets import QSizePolicy
+        size_policy = self.ui.groupBox_7.sizePolicy()
+        size_policy.setHorizontalPolicy(QSizePolicy.Policy.Fixed)
+        self.ui.groupBox_7.setSizePolicy(size_policy)
 
     def _setup_progressbars(self):
         h_tx_style = ("QProgressBar { border: 1px solid #c0c4ca; background-color: #f0ecf4; }"
@@ -308,9 +311,13 @@ class MainWindow(QMainWindow):
         self.client_keti.set_defaults()
         self.client_nextfoam.set_defaults()
 
-        self.ui.checkBox_auto_reconnect.setChecked(True)
+        self.ui.checkBox_auto_reconnect.setChecked(False)
 
         self.set_window_center()
+
+        # 각 클라이언트 set_defaults()가 IP/Port를 하드코딩된 기본값으로 세팅한 "이후"에
+        # 불러와야 저장된 값이 기본값에 덮어씌워지지 않음
+        self.load_app_settings()
         # self.showMaximized()
 
     def closeEvent(self, e: QCloseEvent):
@@ -481,7 +488,7 @@ class MainWindow(QMainWindow):
 
         # 전체 데이터 캐시 초기화
         with self._last_pintel_data_lock:
-            self._last_pintel_data = None
+            self._last_pintel_data_by_id = {}
         with self._last_vueron_data_lock:
             self._last_vueron_data = None
         with self._last_keti_data_lock:
@@ -625,7 +632,7 @@ class MainWindow(QMainWindow):
         if not checked:
             # 끄면 캐시 비워서 즉시 효과 (이후 신규 데이터 없으면 union에 누락)
             with self._last_pintel_data_lock:
-                self._last_pintel_data = None
+                self._last_pintel_data_by_id = {}
             with self._last_vueron_data_lock:
                 self._last_vueron_data = None
             with self._last_keti_data_lock:
@@ -782,6 +789,79 @@ class MainWindow(QMainWindow):
             self._last_pintel_send_time = None
         self.log(f'[Pintel] 전송 주기: {self.comboBox_pintel_send_interval.currentText()}')
 
+    def _network_client_map(self):
+        return {
+            'pintel': self.client_pintel,
+            'keti': self.client_keti,
+            'vueron_01': self.client_vueron_01,
+            'vueron_02': self.client_vueron_02,
+            'nextfoam': self.client_nextfoam,
+        }
+
+    _IP_HISTORY_MAX = 15
+
+    def _collect_network_settings(self):
+        network = {}
+        for name, client in self._network_client_map().items():
+            entry = {'ip': client.client.ip, 'port': client.client.port}
+            if hasattr(client.client, 'path'):  # WebSocket(Vueron)만 path를 가짐
+                entry['path'] = client.client.path
+            combo = client.ui.ip_comboBox
+            entry['ip_history'] = [combo.itemText(i) for i in range(combo.count())
+                                    if combo.itemText(i)][:self._IP_HISTORY_MAX]
+            network[name] = entry
+        return network
+
+    def _apply_network_settings(self, network: dict):
+        for name, client in self._network_client_map().items():
+            entry = network.get(name)
+            if not entry:
+                continue
+            combo = client.ui.ip_comboBox
+            history = entry.get('ip_history', [])
+            if history:
+                # 저장된 순서(최근 접속 순)를 그대로 재현하도록 콤보박스를 다시 구성.
+                # 단순히 없는 것만 추가하면 히스토리 항목이 기존 프리셋 뒤로 밀려 순서가 깨짐.
+                combo.blockSignals(True)
+                try:
+                    remaining_presets = [combo.itemText(i) for i in range(combo.count())
+                                          if combo.itemText(i) not in history]
+                    combo.clear()
+                    for ip in history:
+                        combo.addItem(ip)
+                    for ip in remaining_presets:
+                        combo.addItem(ip)
+                finally:
+                    combo.blockSignals(False)
+            ip = entry.get('ip')
+            port = entry.get('port')
+            if hasattr(client.client, 'path'):
+                client.set_ip_port(ip, port, entry.get('path', ''))
+            else:
+                client.set_ip_port(ip, port)
+
+    def remember_connected_ip(self, client):
+        """접속에 성공한 IP를 그 소스의 ip_comboBox 맨 위로 올려서 드롭다운 히스토리에 누적."""
+        combo = client.ui.ip_comboBox
+        ip = client.client.ip
+        if not ip:
+            return
+        combo.blockSignals(True)
+        try:
+            idx = combo.findText(ip)
+            if idx != -1:
+                combo.removeItem(idx)
+            combo.insertItem(0, ip)
+            combo.setCurrentIndex(0)
+            while combo.count() > self._IP_HISTORY_MAX:
+                combo.removeItem(combo.count() - 1)
+        finally:
+            combo.blockSignals(False)
+
+    def save_network_settings(self):
+        """연결 시점의 IP/Port를 즉시 저장 (각 클라이언트의 on_connected_task에서 호출)."""
+        self.save_app_settings()
+
     def save_app_settings(self):
         config_path = self.app_info.settings_path / 'app_settings.json'
         try:
@@ -792,6 +872,7 @@ class MainWindow(QMainWindow):
                     'save_pintel': self.get_source_save_enabled('pintel'),
                     'save_keti': self.get_source_save_enabled('keti'),
                     'save_vueron': self.get_source_save_enabled('vueron'),
+                    'network': self._collect_network_settings(),
                 }, f)
         except Exception as e:
             self.log(f'[설정] 저장 실패: {e}')
@@ -806,6 +887,7 @@ class MainWindow(QMainWindow):
                 self.set_source_save_enabled('pintel', cfg.get('save_pintel', True))
                 self.set_source_save_enabled('keti', cfg.get('save_keti', True))
                 self.set_source_save_enabled('vueron', cfg.get('save_vueron', True))
+                self._apply_network_settings(cfg.get('network', {}))
         except Exception as e:
             self.log(f'[설정] 로드 실패: {e}')
 

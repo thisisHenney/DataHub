@@ -108,6 +108,8 @@ class ClientPintel(MqttWidget):
         self.set_connected_ui()
 
         self.set_defaults_progressbar()
+        self.parent.remember_connected_ip(self)
+        self.parent.save_network_settings()
 
         self.checking_timer.start()
 
@@ -171,24 +173,30 @@ class ClientPintel(MqttWidget):
                 pass
             return
 
+        # common[0]은 상황에 따라 바뀌는 값이라 안 쓰고, common[1]이 실제 카메라 번호라
+        # 이걸로 소스를 구분한다. common[4]는 타임스탬프.
         timestamp_data = json_data.get('common[4]')
-        id_list = json_data.get('common')
-        if timestamp_data is None or not id_list or len(id_list) < 2:
-            self.parent.log('PINTEL >> Missing common/timestamp fields')
+        camera_no = json_data.get('common[1]')
+        if timestamp_data is None or camera_no is None:
+            self.parent.log('PINTEL >> Missing timestamp/camera number (common[4]/common[1])')
             return
 
         try:
             timestamp_data = str(timestamp_data)
             timestamp = int(timestamp_data[:-3])
             ms = timestamp_data[-3:]
+            # Pintel 카메라 장비는 자체 시계가 이미 KST로 맞춰진 상태에서 epoch를 만들어
+            # 보낸다(즉 UTC로 그냥 해석한 값이 실제 KST 시각과 동일). 실측 결과
+            # no_shift(=utcfromtimestamp 그대로)가 now()와 일치하고 +9h를 더하면 9시간
+            # 앞선(다음날 새벽) 시각이 되는 것을 확인했으므로 KST 보정을 적용하지 않는다.
             dt = datetime.utcfromtimestamp(timestamp)
             timestamp_filename = dt.strftime("%Y%m%d_%H%M%S")+ms
-            id_data = f'{int(id_list[0]):02d}{int(id_list[1]):02d}'
+            camera_no = int(camera_no)
         except (ValueError, TypeError, IndexError):
-            self.parent.log('PINTEL >> Invalid timestamp/id format')
+            self.parent.log('PINTEL >> Invalid timestamp/camera number format')
             return
 
-        filename = f"{id_data}_{timestamp_filename}"
+        filename = f"{camera_no:04d}_{timestamp_filename}"
 
         idx = self.count_thread % self.num_thread
         self.count_thread = (idx + 1) % self.num_thread

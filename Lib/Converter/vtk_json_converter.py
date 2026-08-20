@@ -527,11 +527,14 @@ class VtkJsonConverter:
                 self.array = np.array(data_list)
 
         elif self.company == CompanyType.Vueron:
+            # Vueron 1, 2 모두 사람 목록 키가 'mzVObjects'.
             people_dict_parent = reader.get('payload.clientFrames[0]')
-            if people_dict_parent is None or 'vObjects' not in people_dict_parent:
+            people_dict_list = None
+            if people_dict_parent is not None:
+                people_dict_list = people_dict_parent.get('mzVObjects')
+            if not people_dict_list:
                 self.array = np.empty((0, 6))
                 return
-            people_dict_list = people_dict_parent['vObjects']
             people_array = []
             for person_dict in people_dict_list:
                 x, y = self.gps_to_korean(person_dict['latitude'], person_dict['longitude'])

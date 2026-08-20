@@ -366,6 +366,7 @@ class FileMergingThread(QThread):
         if self._stopped:
             return
 
+        fresh_pintel_by_id = {}
         arr = self._safe_parse_filenames(pintel_filename_list)
         if arr is not None:
             times = arr[:, 2]
@@ -383,7 +384,7 @@ class FileMergingThread(QThread):
                         min_idx = sid_idxs[np.argmin(dt_array[sid_idxs])]
                         key = pintel_filename_list[min_idx]
                         if key in self.vtk_data_dict_pintel:
-                            pintel_data_list.append(self.vtk_data_dict_pintel[key])
+                            fresh_pintel_by_id[int(s_id)] = self.vtk_data_dict_pintel[key]
                             pintel_used_keys.add(key)
 
             expired_keys = {pintel_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
@@ -393,12 +394,15 @@ class FileMergingThread(QThread):
                     for key in keys_to_delete:
                         self.vtk_data_dict_pintel.pop(key, None)
 
-        # Pintel 캐시 fallback: 신규 없으면 직전 데이터 재사용
+        # Pintel 캐시: 카메라 번호별로 병합. 이번 사이클에 새 데이터가 온 카메라만 캐시를
+        # 갱신하고, 나머지 카메라는 이전 값을 그대로 유지 (한 카메라가 신규 없다고 다른
+        # 카메라의 직전 데이터까지 통합에서 사라지는 것을 방지).
         if getattr(self.parent, '_use_data_cache', True):
             with self.parent._last_pintel_data_lock:
-                if pintel_data_list:
-                    self.parent._last_pintel_data = pintel_data_list
-                pintel_data_list = self.parent._last_pintel_data or []
+                self.parent._last_pintel_data_by_id.update(fresh_pintel_by_id)
+                pintel_data_list = list(self.parent._last_pintel_data_by_id.values())
+        else:
+            pintel_data_list = list(fresh_pintel_by_id.values())
 
         if self._stopped:
             return

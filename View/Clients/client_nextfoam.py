@@ -82,6 +82,8 @@ class ClientNextfoam(MqttWidget):
         self.set_connected_ui()
 
         self.set_defaults_progressbar()
+        self.parent.remember_connected_ip(self)
+        self.parent.save_network_settings()
 
     def on_disconnected_task(self):
         self.ui.lineEdit.setText(f'Disconnected')
