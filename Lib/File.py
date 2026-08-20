@@ -451,6 +451,7 @@ class FileMergingThread(QThread):
             times = arr[:, 2]
             dt_array = self.timestamp_to_dt(times)
 
+            superseded_keys = set()
             for s_id in (1, 2):
                 c1 = arr[:, 0] == s_id
                 c2 = dt_array < merge_limit_milli_sec
@@ -466,8 +467,14 @@ class FileMergingThread(QThread):
                         vueron_data_list.append(self.vtk_data_dict_vueron[key])
                         vueron_used_keys.add(key)
 
+                # Vueron은 병합 주기보다 훨씬 빠르게 스트리밍되어, 이번 사이클에 선택되지
+                # 않은(더 최신 데이터에 밀린) 같은 장비의 나머지 항목들은 다음 사이클에도
+                # 선택될 일이 없다(계속 더 새 데이터가 들어오므로). 60초 TTL까지 그냥 두면
+                # vtk_data_dict_vueron에 안 쓰이는 항목이 계속 쌓이므로 바로 정리한다.
+                superseded_keys.update(vueron_filename_list[idx] for idx in idxs if idx != min_idx)
+
             expired_keys = {vueron_filename_list[idx] for idx in np.where(dt_array > merge_limit_milli_sec)[0]}
-            keys_to_delete = vueron_used_keys | expired_keys
+            keys_to_delete = vueron_used_keys | expired_keys | superseded_keys
             if keys_to_delete:
                 with self.vueron_lock:
                     for key in keys_to_delete:
