@@ -434,13 +434,15 @@ class MainWindow(QMainWindow):
         actor.SetPosition(-944860, -1951930, 1)
         self.actor_dict['KETI'] = actor
 
-        # Union
+        # Union — 트리에 어떤 데이터가 합쳐진 필드인지 보이도록 이름에 필드명을 같이 표기.
+        # (main_window.py의 groups 목록도 이 이름과 정확히 맞춰야 함)
         for i, field, scalar_range in [(1, 'density', (0, 10)), (2, 'pintel_density', (0, 10)),
                                         (3, 'keti_density', (0, 10)), (4, 'vueron_density', (0, 10)),
                                         (5, 'velocity', (0, 5))]:
+            name = f'Union {i}({field})'
             reader = vtkDataSetReader()
             reader.SetFileName('')
-            self.reader_dict[f'Union {i}'] = reader
+            self.reader_dict[name] = reader
 
             if field == 'velocity':
                 # 히트맵 대신 화살표 글리프: 셀 중심에 점을 만들고(cell data -> point data
@@ -496,7 +498,7 @@ class MainWindow(QMainWindow):
             actor.SetMapper(mapper)
             actor.SetPosition(-944860, -1951930, 10)
             actor.GetProperty().SetOpacity(0.5 if i == 4 else 0.8)
-            self.actor_dict[f'Union {i}'] = actor
+            self.actor_dict[name] = actor
 
         # Grid
         for i in [2, 10, 100]:
@@ -540,7 +542,8 @@ class MainWindow(QMainWindow):
             ('Pintel', [f'Pintel {i}' for i in range(1, 65)], False),
             ('KETI', ['KETI'], False),
             ('Vueron', ['Vueron 1', 'Vueron 2'], False),
-            ('Union', ['Union 1', 'Union 2', 'Union 3', 'Union 4', 'Union 5'], False),
+            ('Union', ['Union 1(density)', 'Union 2(pintel_density)', 'Union 3(keti_density)',
+                       'Union 4(vueron_density)', 'Union 5(velocity)'], False),
         ]
 
         self._group_items = {}
