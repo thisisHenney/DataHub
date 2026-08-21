@@ -258,6 +258,7 @@ class ClientPintel(MqttWidget):
         ui.connect_button.setText('Connected')
         ui.disconnect_button.setEnabled(True)
 
+        self.parser.is_running = True
         if not self.parser.isRunning():
             self.parser.start()
 
