@@ -198,6 +198,11 @@ class MqttWidget(QWidget):
 
         self.txrx_timer = QTimer()
 
+        # 사용자가 Disconnect 버튼(또는 전체 연결 해제)으로 직접 끊었는지 여부.
+        # True면 on_disconnected_task()에서 자동재접속 타이머를 걸지 않음 — 외부 요인(네트워크
+        # 끊김, keepalive 초과 등)으로 끊긴 경우에만 자동재접속이 동작하게 하기 위함.
+        self.user_disconnected = False
+
         self._init_signal()
 
     def _init_signal(self):
@@ -329,6 +334,7 @@ class MqttWidget(QWidget):
         if self.client.isRunning():
             return
 
+        self.user_disconnected = False
         self.connect_to_server_pretask()
         self.client.start()
 
@@ -339,6 +345,7 @@ class MqttWidget(QWidget):
         if self.client is None:
             return
 
+        self.user_disconnected = True
         if self.client.is_connected():
             self.client.disconnect_from_server()
         self.disconnect_from_server_task()

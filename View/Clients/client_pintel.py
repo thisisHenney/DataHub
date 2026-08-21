@@ -32,6 +32,8 @@ class ClientPintel(MqttWidget):
         self.count_thread = 0
         self.num_thread = 16
         self.savers = [FileSaverThread(CompanyType.Pintel, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
+        for saver in self.savers:
+            saver.backlog_notice.connect(self.parent.log)
 
         self.checking_timer = QTimer()
         self._no_rx_count = 0
@@ -119,7 +121,7 @@ class ClientPintel(MqttWidget):
 
         self.set_defaults_progressbar()
 
-        if self.parent.is_reconnect:
+        if self.parent.is_reconnect and not self.user_disconnected:
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def _on_timer_reconnect(self):

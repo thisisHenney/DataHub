@@ -34,6 +34,8 @@ class ClientVueron01(WebSocketWidget):
         self.count_thread = 0
         self.num_thread = 4
         self.savers = [FileSaverThread(CompanyType.Vueron, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
+        for saver in self.savers:
+            saver.backlog_notice.connect(self.parent.log)
         self._no_rx_count = 0
 
         self._initialize()
@@ -110,7 +112,7 @@ class ClientVueron01(WebSocketWidget):
 
         self.set_defaults_progressbar()
 
-        if self.parent.is_reconnect:
+        if self.parent.is_reconnect and not self.user_disconnected:
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def _on_timer_reconnect(self):

@@ -259,35 +259,6 @@ QGroupBox::title {
           </widget>
          </item>
          <item>
-          <widget class="Line" name="line_10">
-           <property name="font">
-            <font>
-             <family>나눔스퀘어라운드</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pushButton_open_solver_data_log_2">
-           <property name="enabled">
-            <bool>true</bool>
-           </property>
-           <property name="font">
-            <font>
-             <family>나눔스퀘어라운드</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Solver Data Log</string>
-           </property>
-          </widget>
-         </item>
-         <item>
           <spacer name="verticalSpacer_7">
            <property name="font">
             <font>

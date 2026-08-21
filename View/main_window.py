@@ -245,8 +245,7 @@ class MainWindow(QMainWindow):
                     self.ui.pushButton_setting_datahub,
                     self.ui.pushButton_create_sim_data,
                     self.ui.pushButton_show_log,
-                    self.ui.pushButton_open_solver_data_log,
-                    self.ui.pushButton_open_solver_data_log_2):
+                    self.ui.pushButton_open_solver_data_log):
             btn.setStyleSheet(_gray_button_style)
 
         self._setup_progressbars()
@@ -593,15 +592,17 @@ class MainWindow(QMainWindow):
         # 구분선
         layout.insertWidget(insert_idx, _sep()); insert_idx += 1
 
-        # 데이터 캐시 기능 안내 라벨
+        # 데이터 캐시 기능 안내 라벨 (기능은 유지하되 UI에서는 숨김)
         self.label_data_cache = QLabel('데이터 누락 시 이전 값 재사용', self.ui.groupBox_7)
         self.label_data_cache.setStyleSheet('font-size: 7pt; color: #555;')
+        self.label_data_cache.setVisible(False)
         layout.insertWidget(insert_idx, self.label_data_cache); insert_idx += 1
 
-        # 데이터 캐시 ON/OFF 체크박스 (기본 ON)
+        # 데이터 캐시 ON/OFF 체크박스 (기본 ON, UI에서는 숨기고 항상 ON으로 동작)
         self.checkBox_data_cache = QCheckBox('사용함', self.ui.groupBox_7)
         self.checkBox_data_cache.setStyleSheet('font-size: 8pt;')
         self.checkBox_data_cache.setChecked(True)
+        self.checkBox_data_cache.setVisible(False)
         self.checkBox_data_cache.toggled.connect(self._toggle_data_cache)
         layout.insertWidget(insert_idx, self.checkBox_data_cache); insert_idx += 1
         self._use_data_cache = True
@@ -1069,9 +1070,8 @@ class MainWindow(QMainWindow):
 
     def clicked_disconnect_all(self):
         self.log('Disconnect All')
-        # 자동재접속을 먼저 비활성화해야 disconnect 중 on_disconnected_task가 재접속 타이머를 등록하지 않음
-        if self.ui.checkBox_auto_reconnect.isChecked():
-            self.ui.checkBox_auto_reconnect.setChecked(False)
+        # 각 클라이언트의 disconnect_from_server()가 user_disconnected를 스스로 표시하므로
+        # 자동재접속 체크박스는 그대로 두어도 재접속 타이머가 걸리지 않음
         self.client_pintel.disconnect_from_server()
         self.client_vueron_01.disconnect_from_server()
         self.client_vueron_02.disconnect_from_server()

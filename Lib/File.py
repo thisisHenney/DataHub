@@ -54,6 +54,7 @@ class FileWriterThread(QThread):
         super().__init__()
         self.is_running = True
         self._last_warn_time = 0.0
+        self._backlog_warned = False
 
     def stop(self):
         self.is_running = False
@@ -67,6 +68,9 @@ class FileWriterThread(QThread):
                     item = _writer_queue.popleft() if _writer_queue else None
 
                 if item is None:
+                    if self._backlog_warned:
+                        self.queue_warning.emit('[Writer] queue stabilized (length 0)')
+                        self._backlog_warned = False
                     _writer_event.wait(timeout=0.5)
                     _writer_event.clear()
                     continue
@@ -98,6 +102,10 @@ class FileWriterThread(QThread):
                     if now - self._last_warn_time >= 10.0:
                         self.queue_warning.emit(f'[Writer] queue length {qlen}')
                         self._last_warn_time = now
+                        self._backlog_warned = True
+                elif self._backlog_warned:
+                    self.queue_warning.emit(f'[Writer] queue stabilized (length {qlen})')
+                    self._backlog_warned = False
 
             except Exception:
                 print("[Writer Notice]:")
@@ -163,6 +171,7 @@ def clear_writer_queue():
 
 class FileSaverThread(QThread):
     finished = Signal(str)  # 저장 완료 시 메시지 전달
+    backlog_notice = Signal(str)  # stack 적체/해소 진단 메시지를 GUI 로그창으로 전달
 
     def __init__(self, company_type: CompanyType, vtk_data_dict, vtk_data_lock=None):
         super().__init__()
@@ -175,6 +184,7 @@ class FileSaverThread(QThread):
         self.is_running = True
         self.vtk_data_dict = vtk_data_dict
         self.vtk_data_lock = vtk_data_lock or threading.Lock()
+        self._backlog_warned = False
         self._event = threading.Event()
         self.dual_path_base = None   # None=OFF, Path=ON → received_data/received_data_YYYYMMDD_HHMMSS
         self.save_enabled = True     # False면 개별 수신 데이터(json/vtk) 파일 저장을 생략. 통합 데이터에는 영향 없음.
@@ -261,9 +271,16 @@ class FileSaverThread(QThread):
                     if slen >= 10:
                         now = time.monotonic()
                         if now - self._last_warn_time >= 10.0:
-                            print(self.CompanyType.name, "stack length", slen)
+                            self.backlog_notice.emit(f'{self.CompanyType.name} >> stack length {slen}')
                             self._last_warn_time = now
+                            self._backlog_warned = True
+                    elif self._backlog_warned:
+                        self.backlog_notice.emit(f'{self.CompanyType.name} >> stack stabilized (length {slen})')
+                        self._backlog_warned = False
                 else:
+                    if self._backlog_warned:
+                        self.backlog_notice.emit(f'{self.CompanyType.name} >> stack stabilized (length 0)')
+                        self._backlog_warned = False
                     self._event.wait(timeout=0.5)
                     self._event.clear()
 

@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main_window.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.10.0
+## Created by: Qt User Interface Compiler version 6.11.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -164,21 +164,6 @@ class Ui_MainWindow(object):
         self.pushButton_run_live_viewer.setFont(font2)
 
         self.verticalLayout_7.addWidget(self.pushButton_run_live_viewer)
-
-        self.line_10 = QFrame(self.groupBox_7)
-        self.line_10.setObjectName(u"line_10")
-        self.line_10.setFont(font2)
-        self.line_10.setFrameShape(QFrame.Shape.HLine)
-        self.line_10.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.verticalLayout_7.addWidget(self.line_10)
-
-        self.pushButton_open_solver_data_log_2 = QPushButton(self.groupBox_7)
-        self.pushButton_open_solver_data_log_2.setObjectName(u"pushButton_open_solver_data_log_2")
-        self.pushButton_open_solver_data_log_2.setEnabled(True)
-        self.pushButton_open_solver_data_log_2.setFont(font2)
-
-        self.verticalLayout_7.addWidget(self.pushButton_open_solver_data_log_2)
 
         self.verticalSpacer_7 = QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -956,7 +941,6 @@ class Ui_MainWindow(object):
         self.pushButton_show_log.setText(QCoreApplication.translate("MainWindow", u"Show Log", None))
         self.pushButton_open_solver_data_log.setText(QCoreApplication.translate("MainWindow", u"Solver Data Log", None))
         self.pushButton_run_live_viewer.setText(QCoreApplication.translate("MainWindow", u"Live Viewer", None))
-        self.pushButton_open_solver_data_log_2.setText(QCoreApplication.translate("MainWindow", u"Solver Data Log", None))
         self.groupBox.setTitle(QCoreApplication.translate("MainWindow", u"< Monitoring Dashboard >", None))
         self.groupBox_keti.setTitle(QCoreApplication.translate("MainWindow", u"< Client - KETI >", None))
         self.pushButton_open_received_path_keti.setText(QCoreApplication.translate("MainWindow", u"\ub85c\uadf8 \ubcf4\uae30", None))

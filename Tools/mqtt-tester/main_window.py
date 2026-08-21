@@ -4,7 +4,7 @@
 import json
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QComboBox, QPushButton, QLabel, QCheckBox, QSplitter,
@@ -33,9 +33,17 @@ class MainWindow(QMainWindow):
         self.topic_data = {}   # {full_topic: {'payload':bytes,'qos':int,'retain':bool,'ts':float,'count':int}}
         self._tree_nodes = {}  # {path_prefix: QTreeWidgetItem}
         self._selected_topic = None
+        self._dirty_topics = set()
 
         self._build_ui()
         self._load_settings()
+
+        # 대량 수신 시 메시지마다 트리/상세뷰를 갱신하면 GUI 스레드가 밀려서
+        # 응답없음 상태가 되므로, 화면 갱신은 타이머로 묶어서(batch) 처리한다.
+        self._flush_timer = QTimer(self)
+        self._flush_timer.setInterval(150)
+        self._flush_timer.timeout.connect(self._flush_pending)
+        self._flush_timer.start()
 
     # ---------------------------------------------------------------- UI
 
@@ -259,10 +267,24 @@ class MainWindow(QMainWindow):
         entry['ts'] = ts
         entry['count'] += 1
 
-        self._update_tree_node(topic, entry)
+        self._dirty_topics.add(topic)
 
-        if topic == self._selected_topic:
-            self._show_detail(topic)
+    def _flush_pending(self):
+        if not self._dirty_topics:
+            return
+        dirty, self._dirty_topics = self._dirty_topics, set()
+
+        self.tree.setUpdatesEnabled(False)
+        try:
+            for topic in dirty:
+                entry = self.topic_data.get(topic)
+                if entry is not None:
+                    self._update_tree_node(topic, entry)
+        finally:
+            self.tree.setUpdatesEnabled(True)
+
+        if self._selected_topic in dirty:
+            self._show_detail(self._selected_topic)
 
     def _update_tree_node(self, topic, entry):
         parts = topic.split('/')
