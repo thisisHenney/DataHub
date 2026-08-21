@@ -190,6 +190,21 @@ class ClientPintel(MqttWidget):
                 pass
             return
 
+        # 새 포맷: 카메라별 객체 여러 개가 하나의 JSON 배열로 묶여서 온다
+        # ([{"common":...,"count_data":...}, {...}, ...]). 예전 포맷(카메라 1개당
+        # 최상위가 dict 하나)도 그대로 지원.
+        if isinstance(json_data._buffer, list):
+            for camera_obj in json_data._buffer:
+                if not isinstance(camera_obj, dict):
+                    continue
+                camera_json = JsonRW()
+                camera_json.set_buffer(camera_obj)
+                self._handle_one_camera(camera_json)
+        else:
+            self._handle_one_camera(json_data)
+
+    def _handle_one_camera(self, json_data):
+        """카메라 하나 분량의 JsonRW(단일 객체)를 처리. MessageParserThread 위에서 실행됨."""
         # common[0]은 상황에 따라 바뀌는 값이라 안 쓰고, common[1]이 실제 카메라 번호라
         # 이걸로 소스를 구분한다. common[4]는 타임스탬프.
         timestamp_data = json_data.get('common[4]')
