@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIntValidator
 
-from Lib.File import make_dir, FileSaverThread
+from Lib.File import make_dir, FileSaverThread, MessageParserThread
 from Lib.Json.JsonRW import JsonRW
 from Lib.Network.WebSocket import WebSocketWidget
 
@@ -36,6 +36,12 @@ class ClientVueron02(WebSocketWidget):
         self.savers = [FileSaverThread(CompanyType.Vueron, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
         for saver in self.savers:
             saver.backlog_notice.connect(self.parent.log)
+
+        # JSON 파싱을 GUI 스레드가 아니라 이 백그라운드 스레드에서 수행 (수신량 많을 때
+        # 화면 갱신이 밀리는 것 방지). 자세한 이유는 Lib/File.py의 MessageParserThread 참고.
+        self.parser = MessageParserThread(self._parse_message)
+        self.parser.notice.connect(self.parent.log)
+
         self._no_rx_count = 0
 
         self._initialize()
@@ -63,6 +69,8 @@ class ClientVueron02(WebSocketWidget):
 
     def end(self):
         super().end()
+        self.parser.stop()
+        self.parser.wait(3000)
         for saver in self.savers:
             saver.stop()
         for saver in self.savers:
@@ -137,13 +145,17 @@ class ClientVueron02(WebSocketWidget):
         self.parent.log(f'Vueron2 >> {msg}')
 
     def on_message_task(self, tuple_data):
-        message = tuple_data[0]
-        empty = tuple_data[1]
+        # 여기는 GUI 스레드(큐드 시그널로 호출됨). 무거운 JSON 파싱은 안 하고 바로
+        # 백그라운드 파서 스레드로 넘긴다.
+        self.parser.push(tuple_data[0])
 
+    def _parse_message(self, message):
+        """MessageParserThread 위에서 실행됨 (GUI 스레드 아님) — self.parent.log()
+        대신 반드시 self.parser.notice.emit()으로 알림을 보낼 것."""
         json_data = JsonRW()
         result = json_data.load(message)
         if not result:
-            self.parent.log('Vueron_02 >> Invalid Json Data')
+            self.parser.notice.emit('Vueron_02 >> Invalid Json Data')
             log_path = Path(f'{self.app_info.app_path}/Data/Error/vueron/error_vueron_02.log')
             log_path.parent.mkdir(parents=True, exist_ok=True)
             try:
@@ -162,14 +174,14 @@ class ClientVueron02(WebSocketWidget):
         # Live Viewer의 'Vueron 2'와 무조건 맞아떨어지게 한다.
         timestamp_data = json_data.get('trID')
         if not timestamp_data:
-            self.parent.log('Vueron_02 >> Missing trID')
+            self.parser.notice.emit('Vueron_02 >> Missing trID')
             return
         try:
             dt = datetime.strptime(timestamp_data, "%Y%m%d%H%M%S%f")
             dt_korean = dt + timedelta(hours=9)
             filename = ("0002_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond / 1000):03d}')
         except (ValueError, TypeError):
-            self.parent.log('Vueron_02 >> Invalid trID format')
+            self.parser.notice.emit('Vueron_02 >> Invalid trID format')
             return
 
         idx = self.count_thread % self.num_thread
@@ -209,6 +221,9 @@ class ClientVueron02(WebSocketWidget):
         ui.connect_button.setText('Connected')
         ui.disconnect_button.setEnabled(True)
 
+        if not self.parser.isRunning():
+            self.parser.start()
+
         for saver in self.savers:
             saver.is_running = True
             if not saver.isRunning():
@@ -222,5 +237,6 @@ class ClientVueron02(WebSocketWidget):
         ui.connect_button.setEnabled(True)
         ui.disconnect_button.setEnabled(False)
 
+        self.parser.is_running = False
         for saver in self.savers:
             saver.is_running = False

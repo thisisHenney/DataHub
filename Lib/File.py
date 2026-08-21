@@ -169,6 +169,48 @@ def clear_writer_queue():
         _writer_queue.clear()
 
 
+class MessageParserThread(QThread):
+    """네트워크 스레드가 받은 메시지의 수신 콜백(on_message_task 등)은 Qt의 큐드
+    시그널을 통해 GUI 스레드에서 실행된다. 그 콜백 안에서 JSON 파싱(json.loads)까지
+    GUI 스레드에서 직접 하면, 수신량이 많을 때 파싱이 몰리면서 화면 갱신(툴팁, 프로그레스바
+    애니메이션 등)이 계속 밀려 "응답없음"처럼 보이는 문제가 생긴다.
+    그래서 GUI 스레드는 push()만(락 걸고 deque에 추가) 호출하고, 실제 파싱은 이 백그라운드
+    스레드에서 수행한다. parse_func(raw_item)은 이 스레드 위에서 실행되므로 GUI 위젯을
+    직접 건드리면 안 되고, 사용자에게 보여줄 메시지는 반드시 notice 시그널로 emit해야 한다."""
+    notice = Signal(str)
+
+    def __init__(self, parse_func):
+        super().__init__()
+        self._parse_func = parse_func
+        self.stack = deque(maxlen=64)
+        self._stack_lock = threading.Lock()
+        self.is_running = True
+        self._event = threading.Event()
+
+    def push(self, raw_item):
+        with self._stack_lock:
+            self.stack.append(raw_item)
+        self._event.set()
+
+    def stop(self):
+        self.is_running = False
+        self._event.set()
+
+    def run(self):
+        while self.is_running:
+            with self._stack_lock:
+                item = self.stack.popleft() if self.stack else None
+            if item is None:
+                self._event.wait(timeout=0.5)
+                self._event.clear()
+                continue
+            try:
+                self._parse_func(item)
+            except Exception:
+                print("[Parser Notice]:")
+                traceback.print_exc()
+
+
 class FileSaverThread(QThread):
     finished = Signal(str)  # 저장 완료 시 메시지 전달
     backlog_notice = Signal(str)  # stack 적체/해소 진단 메시지를 GUI 로그창으로 전달

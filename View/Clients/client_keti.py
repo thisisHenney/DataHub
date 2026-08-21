@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIntValidator
 
-from Lib.File import make_dir, FileSaverThread
+from Lib.File import make_dir, FileSaverThread, MessageParserThread
 from Lib.Json.JsonRW import JsonRW
 from Lib.Network.MQTT import MqttWidget
 
@@ -34,6 +34,11 @@ class ClientKeti(MqttWidget):
         self.savers = [FileSaverThread(CompanyType.KETI, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
         for saver in self.savers:
             saver.backlog_notice.connect(self.parent.log)
+
+        # JSON 파싱을 GUI 스레드가 아니라 이 백그라운드 스레드에서 수행 (수신량 많을 때
+        # 화면 갱신이 밀리는 것 방지). 자세한 이유는 Lib/File.py의 MessageParserThread 참고.
+        self.parser = MessageParserThread(self._parse_crowd_congestion_message)
+        self.parser.notice.connect(self.parent.log)
 
         self.checking_timer = QTimer()
         self._no_rx_count = 0
@@ -80,6 +85,8 @@ class ClientKeti(MqttWidget):
     def end(self):
         super().end()
         self.checking_timer.stop()
+        self.parser.stop()
+        self.parser.wait(3000)
         for saver in self.savers:
             saver.stop()
         for saver in self.savers:
@@ -164,12 +171,19 @@ class ClientKeti(MqttWidget):
             self.on_message_task_topic_crowd_congestion(tuple_data[1])
 
     def on_message_task_topic_crowd_congestion(self, topic_data):
+        # 여기는 GUI 스레드(큐드 시그널로 호출됨). 무거운 JSON 파싱은 안 하고 바로
+        # 백그라운드 파서 스레드로 넘긴다.
+        self.parser.push(topic_data)
+
+    def _parse_crowd_congestion_message(self, topic_data):
+        """MessageParserThread 위에서 실행됨 (GUI 스레드 아님) — self.parent.log()
+        대신 반드시 self.parser.notice.emit()으로 알림을 보낼 것."""
         message = topic_data
 
         json_data = JsonRW()
         result = json_data.load(message)
         if not result:
-            self.parent.log('KETI >> Invalid Json Data')
+            self.parser.notice.emit('KETI >> Invalid Json Data')
             log_path = Path(f'{self.app_info.app_path}/Data/Error/keti/error_keti.log')
             log_path.parent.mkdir(parents=True, exist_ok=True)
             try:
@@ -185,12 +199,12 @@ class ClientKeti(MqttWidget):
 
         timestamp_data = json_data.get('result_time')   # "2025-05-24 09:15:56.236"
         if not timestamp_data:
-            self.parent.log('KETI >> Missing result_time')
+            self.parser.notice.emit('KETI >> Missing result_time')
             return
         try:
             dt = datetime.strptime(timestamp_data, "%Y-%m-%d %H:%M:%S.%f")
         except (ValueError, TypeError):
-            self.parent.log('KETI >> Invalid result_time format')
+            self.parser.notice.emit('KETI >> Invalid result_time format')
             return
         dt_korean = dt + timedelta(hours=9)
         filename = ( "0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond/1000):03d}')
@@ -236,6 +250,9 @@ class ClientKeti(MqttWidget):
         ui.connect_button.setText('Connected')
         ui.disconnect_button.setEnabled(True)
 
+        if not self.parser.isRunning():
+            self.parser.start()
+
         for saver in self.savers:
             saver.is_running = True
             if not saver.isRunning():
@@ -249,5 +266,6 @@ class ClientKeti(MqttWidget):
         ui.connect_button.setEnabled(True)
         ui.disconnect_button.setEnabled(False)
 
+        self.parser.is_running = False
         for saver in self.savers:
             saver.is_running = False

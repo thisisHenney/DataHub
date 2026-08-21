@@ -7,7 +7,7 @@ from datetime import datetime
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIntValidator
 
-from Lib.File import make_dir, FileSaverThread
+from Lib.File import make_dir, FileSaverThread, MessageParserThread
 from Lib.Json.JsonRW import JsonRW
 from Lib.Network.MQTT import MqttWidget
 from Lib.Converter.vtk_json_converter import VtkJsonConverter, CompanyType
@@ -34,6 +34,11 @@ class ClientPintel(MqttWidget):
         self.savers = [FileSaverThread(CompanyType.Pintel, self.vtk_data_dict, self.vtk_data_lock) for i in range(self.num_thread)]
         for saver in self.savers:
             saver.backlog_notice.connect(self.parent.log)
+
+        # JSON 파싱을 GUI 스레드가 아니라 이 백그라운드 스레드에서 수행 (수신량 많을 때
+        # 화면 갱신이 밀리는 것 방지). 자세한 이유는 Lib/File.py의 MessageParserThread 참고.
+        self.parser = MessageParserThread(self._parse_camera_message)
+        self.parser.notice.connect(self.parent.log)
 
         self.checking_timer = QTimer()
         self._no_rx_count = 0
@@ -74,6 +79,8 @@ class ClientPintel(MqttWidget):
     def end(self):
         super().end()
         self.checking_timer.stop()
+        self.parser.stop()
+        self.parser.wait(3000)
         for saver in self.savers:
             saver.stop()
         for saver in self.savers:
@@ -158,10 +165,17 @@ class ClientPintel(MqttWidget):
             self.on_message_task_by_topic_camera(tuple_data[1])
 
     def on_message_task_by_topic_camera(self, topic_data):
+        # 여기는 GUI 스레드(큐드 시그널로 호출됨). 무거운 JSON 파싱은 안 하고 바로
+        # 백그라운드 파서 스레드로 넘긴다.
+        self.parser.push(topic_data)
+
+    def _parse_camera_message(self, topic_data):
+        """MessageParserThread 위에서 실행됨 (GUI 스레드 아님) — self.parent.log()
+        대신 반드시 self.parser.notice.emit()으로 알림을 보낼 것."""
         json_data = JsonRW()
         result = json_data.load(topic_data)
         if not result:
-            self.parent.log('PINTEL >> Invalid Json Data')
+            self.parser.notice.emit('PINTEL >> Invalid Json Data')
             log_path = Path(f'{self.app_info.app_path}/Data/Error/pintel/error_pintel.log')
             log_path.parent.mkdir(parents=True, exist_ok=True)
             try:
@@ -180,7 +194,7 @@ class ClientPintel(MqttWidget):
         timestamp_data = json_data.get('common[4]')
         camera_no = json_data.get('common[1]')
         if timestamp_data is None or camera_no is None:
-            self.parent.log('PINTEL >> Missing timestamp/camera number (common[4]/common[1])')
+            self.parser.notice.emit('PINTEL >> Missing timestamp/camera number (common[4]/common[1])')
             return
 
         try:
@@ -195,7 +209,7 @@ class ClientPintel(MqttWidget):
             timestamp_filename = dt.strftime("%Y%m%d_%H%M%S")+ms
             camera_no = int(camera_no)
         except (ValueError, TypeError, IndexError):
-            self.parent.log('PINTEL >> Invalid timestamp/camera number format')
+            self.parser.notice.emit('PINTEL >> Invalid timestamp/camera number format')
             return
 
         filename = f"{camera_no:04d}_{timestamp_filename}"
@@ -244,6 +258,9 @@ class ClientPintel(MqttWidget):
         ui.connect_button.setText('Connected')
         ui.disconnect_button.setEnabled(True)
 
+        if not self.parser.isRunning():
+            self.parser.start()
+
         for saver in self.savers:
             saver.is_running = True
             if not saver.isRunning():
@@ -257,5 +274,6 @@ class ClientPintel(MqttWidget):
         ui.connect_button.setEnabled(True)
         ui.disconnect_button.setEnabled(False)
 
+        self.parser.is_running = False
         for saver in self.savers:
             saver.is_running = False
