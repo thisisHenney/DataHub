@@ -496,11 +496,12 @@ class MainWindow(QMainWindow):
         with self._last_keti_data_lock:
             self._last_keti_data = None
 
-        # saver stack 비우기
+        # saver stack 비우기 + 누적 drop 카운트 리셋
         for client in self._all_source_clients():
             if hasattr(client, 'savers'):
                 for saver in client.savers:
                     saver.stack.clear()
+                    saver.dropped_count = 0
 
         self.progressBar_clear.setRange(0, 1)
         self.progressBar_clear.setValue(0)

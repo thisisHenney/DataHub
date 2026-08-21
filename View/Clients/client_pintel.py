@@ -264,6 +264,7 @@ class ClientPintel(MqttWidget):
 
         for saver in self.savers:
             saver.is_running = True
+            saver.dropped_count = 0
             if not saver.isRunning():
                 saver.start()
 
