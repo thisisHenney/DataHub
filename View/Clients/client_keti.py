@@ -39,6 +39,7 @@ class ClientKeti(MqttWidget):
         # 화면 갱신이 밀리는 것 방지). 자세한 이유는 Lib/File.py의 MessageParserThread 참고.
         self.parser = MessageParserThread(self._parse_crowd_congestion_message)
         self.parser.notice.connect(self.parent.log)
+        self.parser.data_time.connect(self.ui.label_data_time.setText)
 
         self.checking_timer = QTimer()
         self._no_rx_count = 0
@@ -208,6 +209,9 @@ class ClientKeti(MqttWidget):
             return
         dt_korean = dt + timedelta(hours=9)
         filename = ( "0001_" + dt_korean.strftime("%Y%m%d_%H%M%S") + f'{int(dt_korean.microsecond/1000):03d}')
+
+        # 시스템 수신 시각이 아니라, 메시지 안에 담긴 데이터 자체의 시각을 표시
+        self.parser.data_time.emit(f'최근 수신 데이터 시간: {dt_korean.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]}')
 
         idx = self.count_thread % self.num_thread
         self.count_thread = (idx + 1) % self.num_thread

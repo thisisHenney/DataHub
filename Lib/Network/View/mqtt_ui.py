@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'mqtt.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.9.1
+## Created by: Qt User Interface Compiler version 6.11.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -205,6 +205,15 @@ class Ui_Form_Mqtt(object):
         self.lineEdit.setReadOnly(True)
         self.lineEdit.setClearButtonEnabled(False)
         self.splitter.addWidget(self.lineEdit)
+        self.label_data_time = QLabel(self.splitter)
+        self.label_data_time.setObjectName(u"label_data_time")
+        font5 = QFont()
+        font5.setFamilies([u"\ub9d1\uc740 \uace0\ub515"])
+        font5.setPointSize(8)
+        self.label_data_time.setFont(font5)
+        self.label_data_time.setStyleSheet(u"color: #7f8c9b;")
+        self.label_data_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.splitter.addWidget(self.label_data_time)
 
         self.verticalLayout.addWidget(self.splitter)
 
@@ -242,5 +251,6 @@ class Ui_Form_Mqtt(object):
         self.connect_button.setText(QCoreApplication.translate("Form_Mqtt", u"Connect", None))
         self.disconnect_button.setText(QCoreApplication.translate("Form_Mqtt", u"Disconnect", None))
         self.lineEdit.setText(QCoreApplication.translate("Form_Mqtt", u"Ready (MQTT)", None))
+        self.label_data_time.setText(QCoreApplication.translate("Form_Mqtt", u"\ucd5c\uadfc \uc218\uc2e0 \ub370\uc774\ud130 \uc2dc\uac04: -", None))
     # retranslateUi
 

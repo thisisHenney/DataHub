@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'websocket.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.9.0
+## Created by: Qt User Interface Compiler version 6.11.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -196,6 +196,15 @@ class Ui_Form_WebSocket(object):
         self.lineEdit.setReadOnly(True)
         self.lineEdit.setClearButtonEnabled(False)
         self.splitter.addWidget(self.lineEdit)
+        self.label_data_time = QLabel(self.splitter)
+        self.label_data_time.setObjectName(u"label_data_time")
+        font6 = QFont()
+        font6.setFamilies([u"\ub9d1\uc740 \uace0\ub515"])
+        font6.setPointSize(8)
+        self.label_data_time.setFont(font6)
+        self.label_data_time.setStyleSheet(u"color: #7f8c9b;")
+        self.label_data_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.splitter.addWidget(self.label_data_time)
 
         self.verticalLayout.addWidget(self.splitter)
 
@@ -224,5 +233,6 @@ class Ui_Form_WebSocket(object):
         self.connect_button.setText(QCoreApplication.translate("Form_WebSocket", u"Connect", None))
         self.disconnect_button.setText(QCoreApplication.translate("Form_WebSocket", u"Disconnect", None))
         self.lineEdit.setText(QCoreApplication.translate("Form_WebSocket", u"Ready (WebSocket)", None))
+        self.label_data_time.setText(QCoreApplication.translate("Form_WebSocket", u"\ucd5c\uadfc \uc218\uc2e0 \ub370\uc774\ud130 \uc2dc\uac04: -", None))
     # retranslateUi
 

@@ -186,6 +186,7 @@ class MessageParserThread(QThread):
     스레드에서 수행한다. parse_func(raw_item)은 이 스레드 위에서 실행되므로 GUI 위젯을
     직접 건드리면 안 되고, 사용자에게 보여줄 메시지는 반드시 notice 시그널로 emit해야 한다."""
     notice = Signal(str)
+    data_time = Signal(str)  # 수신 시각(시스템 시각)이 아니라, 메시지 안에 담긴 데이터 자체의 시각
 
     def __init__(self, parse_func):
         super().__init__()

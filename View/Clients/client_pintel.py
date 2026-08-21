@@ -39,6 +39,7 @@ class ClientPintel(MqttWidget):
         # 화면 갱신이 밀리는 것 방지). 자세한 이유는 Lib/File.py의 MessageParserThread 참고.
         self.parser = MessageParserThread(self._parse_camera_message)
         self.parser.notice.connect(self.parent.log)
+        self.parser.data_time.connect(self.ui.label_data_time.setText)
 
         self.checking_timer = QTimer()
         self._no_rx_count = 0
@@ -211,6 +212,9 @@ class ClientPintel(MqttWidget):
         except (ValueError, TypeError, IndexError):
             self.parser.notice.emit('PINTEL >> Invalid timestamp/camera number format')
             return
+
+        # 시스템 수신 시각이 아니라, 메시지 안에 담긴 데이터 자체의 시각을 표시
+        self.parser.data_time.emit(f'최근 수신 데이터 시간: {dt.strftime("%Y-%m-%d %H:%M:%S")}.{ms} (cam {camera_no})')
 
         filename = f"{camera_no:04d}_{timestamp_filename}"
 

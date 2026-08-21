@@ -325,6 +325,23 @@ QPushButton::pressed {
        <bool>false</bool>
       </property>
      </widget>
+     <widget class="QLabel" name="label_data_time">
+      <property name="font">
+       <font>
+        <family>맑은 고딕</family>
+        <pointsize>8</pointsize>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">color: #7f8c9b;</string>
+      </property>
+      <property name="text">
+       <string>최근 수신 데이터 시간: -</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
+      </property>
+     </widget>
     </widget>
    </item>
   </layout>
