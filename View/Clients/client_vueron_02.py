@@ -186,7 +186,7 @@ class ClientVueron02(WebSocketWidget):
             return
 
         # 시스템 수신 시각이 아니라, 메시지 안에 담긴 데이터 자체의 시각을 표시
-        self.parser.data_time.emit(f'최근 수신 데이터 시간: {dt_korean.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]}')
+        self.parser.data_time.emit(f'Data Time: {dt_korean.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]}')
 
         idx = self.count_thread % self.num_thread
         self.count_thread = (idx + 1) % self.num_thread

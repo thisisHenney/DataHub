@@ -203,7 +203,7 @@ class Ui_Form_WebSocket(object):
         font6.setPointSize(8)
         self.label_data_time.setFont(font6)
         self.label_data_time.setStyleSheet(u"color: #7f8c9b;")
-        self.label_data_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_data_time.setAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         self.splitter.addWidget(self.label_data_time)
 
         self.verticalLayout.addWidget(self.splitter)
@@ -233,6 +233,6 @@ class Ui_Form_WebSocket(object):
         self.connect_button.setText(QCoreApplication.translate("Form_WebSocket", u"Connect", None))
         self.disconnect_button.setText(QCoreApplication.translate("Form_WebSocket", u"Disconnect", None))
         self.lineEdit.setText(QCoreApplication.translate("Form_WebSocket", u"Ready (WebSocket)", None))
-        self.label_data_time.setText(QCoreApplication.translate("Form_WebSocket", u"\ucd5c\uadfc \uc218\uc2e0 \ub370\uc774\ud130 \uc2dc\uac04: -", None))
+        self.label_data_time.setText(QCoreApplication.translate("Form_WebSocket", u"Data Time: -", None))
     # retranslateUi
 

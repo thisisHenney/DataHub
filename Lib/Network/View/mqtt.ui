@@ -366,10 +366,10 @@ QPushButton::pressed {
        <string notr="true">color: #7f8c9b;</string>
       </property>
       <property name="text">
-       <string>최근 수신 데이터 시간: -</string>
+       <string>Data Time: -</string>
       </property>
       <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
+       <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
       </property>
      </widget>
     </widget>

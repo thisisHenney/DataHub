@@ -214,7 +214,7 @@ class ClientPintel(MqttWidget):
             return
 
         # 시스템 수신 시각이 아니라, 메시지 안에 담긴 데이터 자체의 시각을 표시
-        self.parser.data_time.emit(f'최근 수신 데이터 시간: {dt.strftime("%Y-%m-%d %H:%M:%S")}.{ms} (cam {camera_no})')
+        self.parser.data_time.emit(f'Data Time: {dt.strftime("%Y-%m-%d %H:%M:%S")}.{ms} (cam {camera_no})')
 
         filename = f"{camera_no:04d}_{timestamp_filename}"
 
