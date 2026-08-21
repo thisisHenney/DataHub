@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         self.num_writer_threads = 4
         self.writer_thread_list = [FileWriterThread() for _ in range(self.num_writer_threads)]
         for wt in self.writer_thread_list:
+            wt.queue_warning.connect(self.log)
             wt.start()
 
         self.timer = QTimer(self)

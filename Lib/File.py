@@ -48,6 +48,8 @@ def _deep_copy_vtk(data):
 
 
 class FileWriterThread(QThread):
+    queue_warning = Signal(str)  # 큐 적체 등 진단 메시지를 GUI 로그창으로 전달
+
     def __init__(self):
         super().__init__()
         self.is_running = True
@@ -94,7 +96,7 @@ class FileWriterThread(QThread):
                 if qlen >= 50:
                     now = time.monotonic()
                     if now - self._last_warn_time >= 10.0:
-                        print(f'[Writer] queue length {qlen}')
+                        self.queue_warning.emit(f'[Writer] queue length {qlen}')
                         self._last_warn_time = now
 
             except Exception:

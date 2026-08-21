@@ -16,3 +16,5 @@ received_data/
 
 *.log
 *.tmp
+
+Tools/mqtt-tester/settings.json
