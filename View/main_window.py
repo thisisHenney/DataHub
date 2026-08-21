@@ -20,7 +20,8 @@ from View.setting_dialog import SettingDialog
 class _ClearDataThread(QThread):
     """received_data 폴더의 모든 파일을 비동기로 삭제."""
     progress = Signal(int, int)  # (current, total)
-    finished_with_stats = Signal(int, int)  # (deleted, total_size)
+    # total_size는 바이트 단위라 32bit int 범위(~2GB)를 쉽게 넘기므로 qint64로 선언
+    finished_with_stats = Signal(int, 'qint64')  # (deleted, total_size)
 
     def __init__(self, data_path, parent=None):
         super().__init__(parent)
@@ -59,7 +60,8 @@ class _ClearDataThread(QThread):
 class _BackupThread(QThread):
     """received_data 파일을 사용자 지정 폴더로 비동기 이동 (스냅샷 방식)."""
     progress = Signal(int, int)                 # (current, total)
-    finished_with_stats = Signal(int, int, str) # (moved, total_size_bytes, dest_dir)
+    # total_size_bytes는 32bit int 범위(~2GB)를 쉽게 넘기므로 qint64로 선언
+    finished_with_stats = Signal(int, 'qint64', str) # (moved, total_size_bytes, dest_dir)
 
     def __init__(self, data_path: Path, backup_dest: Path, parent=None):
         super().__init__(parent)
