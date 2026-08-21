@@ -16,10 +16,10 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QIcon, QImage, QKeySequence, QLinearGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QGridLayout,
-    QGroupBox, QHBoxLayout, QLabel, QLayout,
-    QMainWindow, QPlainTextEdit, QProgressBar, QPushButton,
-    QSizePolicy, QSpacerItem, QStatusBar, QTabWidget,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDockWidget, QFrame,
+    QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLayout, QMainWindow, QPlainTextEdit, QProgressBar,
+    QPushButton, QSizePolicy, QSpacerItem, QStatusBar,
     QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
@@ -172,18 +172,7 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_6.addWidget(self.groupBox_7)
 
-        self.tabWidget = QTabWidget(self.centralwidget)
-        self.tabWidget.setObjectName(u"tabWidget")
-        font3 = QFont()
-        font3.setFamilies([u"Pretendard"])
-        font3.setPointSize(10)
-        font3.setBold(True)
-        self.tabWidget.setFont(font3)
-        self.tab = QWidget()
-        self.tab.setObjectName(u"tab")
-        self.verticalLayout_5 = QVBoxLayout(self.tab)
-        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
-        self.groupBox = QGroupBox(self.tab)
+        self.groupBox = QGroupBox(self.centralwidget)
         self.groupBox.setObjectName(u"groupBox")
         self.groupBox.setFont(font1)
         self.groupBox.setStyleSheet(u"QGroupBox {\n"
@@ -274,11 +263,11 @@ class Ui_MainWindow(object):
         self.text_thread_keti = QLabel(self.groupBox_keti)
         self.text_thread_keti.setObjectName(u"text_thread_keti")
         self.text_thread_keti.setMinimumSize(QSize(0, 24))
-        font4 = QFont()
-        font4.setFamilies([u"\ub098\ub214\uc2a4\ud018\uc5b4\ub77c\uc6b4\ub4dc"])
-        font4.setPointSize(10)
-        font4.setBold(False)
-        self.text_thread_keti.setFont(font4)
+        font3 = QFont()
+        font3.setFamilies([u"\ub098\ub214\uc2a4\ud018\uc5b4\ub77c\uc6b4\ub4dc"])
+        font3.setPointSize(10)
+        font3.setBold(False)
+        self.text_thread_keti.setFont(font3)
         self.text_thread_keti.setFrameShape(QFrame.Shape.Panel)
         self.text_thread_keti.setFrameShadow(QFrame.Shadow.Sunken)
         self.text_thread_keti.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -365,7 +354,7 @@ class Ui_MainWindow(object):
         self.text_thread_pintel = QLabel(self.groupBox_pintel)
         self.text_thread_pintel.setObjectName(u"text_thread_pintel")
         self.text_thread_pintel.setMinimumSize(QSize(0, 24))
-        self.text_thread_pintel.setFont(font4)
+        self.text_thread_pintel.setFont(font3)
         self.text_thread_pintel.setFrameShape(QFrame.Shape.Panel)
         self.text_thread_pintel.setFrameShadow(QFrame.Shadow.Sunken)
         self.text_thread_pintel.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -516,11 +505,11 @@ class Ui_MainWindow(object):
         self.progressBar_rx_keti.setObjectName(u"progressBar_rx_keti")
         self.progressBar_rx_keti.setMinimumSize(QSize(20, 0))
         self.progressBar_rx_keti.setMaximumSize(QSize(16777215, 8))
-        font5 = QFont()
-        font5.setFamilies([u"\ub098\ub214\uc2a4\ud018\uc5b4\ub77c\uc6b4\ub4dc"])
-        font5.setPointSize(10)
-        font5.setKerning(True)
-        self.progressBar_rx_keti.setFont(font5)
+        font4 = QFont()
+        font4.setFamilies([u"\ub098\ub214\uc2a4\ud018\uc5b4\ub77c\uc6b4\ub4dc"])
+        font4.setPointSize(10)
+        font4.setKerning(True)
+        self.progressBar_rx_keti.setFont(font4)
         self.progressBar_rx_keti.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.progressBar_rx_keti.setStyleSheet(u"QProgressBar {\n"
 "        border: 1px solid gray;\n"
@@ -779,92 +768,31 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addLayout(self.horizontalLayout_txrx_nextfoam, 3, 0, 1, 7)
 
-        self.horizontalLayout_4 = QHBoxLayout()
-        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.horizontalSpacer_12 = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_4.addItem(self.horizontalSpacer_12)
-
-        self.groupBox_nextfoam = QGroupBox(self.groupBox)
-        self.groupBox_nextfoam.setObjectName(u"groupBox_nextfoam")
-        self.groupBox_nextfoam.setFont(font1)
-        self.groupBox_nextfoam.setStyleSheet(u"QGroupBox {\n"
-"    border: 1 solid;\n"
-"    border-radius: 6;\n"
-"    margin-top: 9;\n"
-"    border-color : #c8c8c8;\n"
-"    padding: 3;\n"
-"}\n"
-"QGroupBox::title {\n"
-"    subcontrol-origin: margin;\n"
-"    subcontrol-position: top left;\n"
-"    left: 10;\n"
-"    padding: 2 3;\n"
-"}")
-        self.verticalLayout_6 = QVBoxLayout(self.groupBox_nextfoam)
-        self.verticalLayout_6.setObjectName(u"verticalLayout_6")
-        self.verticalLayout_6.setContentsMargins(-1, 12, -1, 6)
-        self.horizontalLayout_nextfoam = QHBoxLayout()
-        self.horizontalLayout_nextfoam.setObjectName(u"horizontalLayout_nextfoam")
-
-        self.verticalLayout_6.addLayout(self.horizontalLayout_nextfoam)
-
-        self.line = QFrame(self.groupBox_nextfoam)
-        self.line.setObjectName(u"line")
-        self.line.setFont(font2)
-        self.line.setFrameShape(QFrame.Shape.HLine)
-        self.line.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.verticalLayout_6.addWidget(self.line)
-
-        self.horizontalLayout_menu_nextfoam = QHBoxLayout()
-        self.horizontalLayout_menu_nextfoam.setObjectName(u"horizontalLayout_menu_nextfoam")
-        self.horizontalLayout_menu_nextfoam.setContentsMargins(-1, 0, -1, -1)
-        self.horizontalSpacer_8 = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_menu_nextfoam.addItem(self.horizontalSpacer_8)
-
-        self.pushButton_open_received_path_nextfoam = QPushButton(self.groupBox_nextfoam)
-        self.pushButton_open_received_path_nextfoam.setObjectName(u"pushButton_open_received_path_nextfoam")
-        self.pushButton_open_received_path_nextfoam.setEnabled(True)
-        self.pushButton_open_received_path_nextfoam.setFont(font2)
-
-        self.horizontalLayout_menu_nextfoam.addWidget(self.pushButton_open_received_path_nextfoam)
-
-        self.pushButton_setting_nextfoam = QPushButton(self.groupBox_nextfoam)
-        self.pushButton_setting_nextfoam.setObjectName(u"pushButton_setting_nextfoam")
-        self.pushButton_setting_nextfoam.setEnabled(False)
-        self.pushButton_setting_nextfoam.setFont(font2)
-
-        self.horizontalLayout_menu_nextfoam.addWidget(self.pushButton_setting_nextfoam)
-
-
-        self.verticalLayout_6.addLayout(self.horizontalLayout_menu_nextfoam)
-
-
-        self.horizontalLayout_4.addWidget(self.groupBox_nextfoam)
-
-        self.horizontalSpacer_13 = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_4.addItem(self.horizontalSpacer_13)
-
-
-        self.gridLayout.addLayout(self.horizontalLayout_4, 4, 0, 1, 7)
-
 
         self.verticalLayout_9.addLayout(self.gridLayout)
 
 
-        self.verticalLayout_5.addWidget(self.groupBox)
+        self.horizontalLayout_6.addWidget(self.groupBox)
 
-        self.tabWidget.addTab(self.tab, "")
-        self.tab_2 = QWidget()
-        self.tab_2.setObjectName(u"tab_2")
-        self.verticalLayout_10 = QVBoxLayout(self.tab_2)
-        self.verticalLayout_10.setObjectName(u"verticalLayout_10")
-        self.groupBox_2 = QGroupBox(self.tab_2)
+
+        self.verticalLayout_4.addLayout(self.horizontalLayout_6)
+
+        MainWindow.setCentralWidget(self.centralwidget)
+        self.dockWidget_log = QDockWidget(MainWindow)
+        self.dockWidget_log.setObjectName(u"dockWidget_log")
+        self.dockWidget_log.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea|Qt.DockWidgetArea.RightDockWidgetArea|Qt.DockWidgetArea.TopDockWidgetArea)
+        self.dockWidget_log.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.dockWidgetContents_log = QWidget()
+        self.dockWidgetContents_log.setObjectName(u"dockWidgetContents_log")
+        self.verticalLayout_log = QVBoxLayout(self.dockWidgetContents_log)
+        self.verticalLayout_log.setObjectName(u"verticalLayout_log")
+        self.groupBox_2 = QGroupBox(self.dockWidgetContents_log)
         self.groupBox_2.setObjectName(u"groupBox_2")
-        self.groupBox_2.setFont(font3)
+        font5 = QFont()
+        font5.setFamilies([u"Pretendard"])
+        font5.setPointSize(10)
+        font5.setBold(True)
+        self.groupBox_2.setFont(font5)
         self.groupBox_2.setStyleSheet(u"QGroupBox {\n"
 "    border: 1 solid;\n"
 "    border-radius: 6;\n"
@@ -890,7 +818,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_9.addWidget(self.plainTextEdit_output)
 
 
-        self.verticalLayout_10.addWidget(self.groupBox_2)
+        self.verticalLayout_log.addWidget(self.groupBox_2)
 
         self.horizontalLayout_8 = QHBoxLayout()
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
@@ -898,30 +826,21 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_8.addItem(self.horizontalSpacer_9)
 
-        self.pushButton = QPushButton(self.tab_2)
+        self.pushButton = QPushButton(self.dockWidgetContents_log)
         self.pushButton.setObjectName(u"pushButton")
 
         self.horizontalLayout_8.addWidget(self.pushButton)
 
 
-        self.verticalLayout_10.addLayout(self.horizontalLayout_8)
+        self.verticalLayout_log.addLayout(self.horizontalLayout_8)
 
-        self.tabWidget.addTab(self.tab_2, "")
-
-        self.horizontalLayout_6.addWidget(self.tabWidget)
-
-
-        self.verticalLayout_4.addLayout(self.horizontalLayout_6)
-
-        MainWindow.setCentralWidget(self.centralwidget)
+        self.dockWidget_log.setWidget(self.dockWidgetContents_log)
+        MainWindow.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dockWidget_log)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(MainWindow)
-
-        self.tabWidget.setCurrentIndex(0)
-
 
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
@@ -964,12 +883,8 @@ class Ui_MainWindow(object):
         self.pushButton_setting_vueron.setText(QCoreApplication.translate("MainWindow", u"\uc124\uc815", None))
         self.progressBar_tx_nextfoam.setFormat("")
         self.progressBar_rx_nextfoam.setFormat("")
-        self.groupBox_nextfoam.setTitle(QCoreApplication.translate("MainWindow", u"< Client - NEXTfoam >", None))
-        self.pushButton_open_received_path_nextfoam.setText(QCoreApplication.translate("MainWindow", u"\ub85c\uadf8 \ubcf4\uae30", None))
-        self.pushButton_setting_nextfoam.setText(QCoreApplication.translate("MainWindow", u"\uc124\uc815", None))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), QCoreApplication.translate("MainWindow", u"Network View", None))
+        self.dockWidget_log.setWindowTitle(QCoreApplication.translate("MainWindow", u"Log", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("MainWindow", u"< Output >", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Message", None))
     # retranslateUi
 

@@ -232,8 +232,6 @@ class MainWindow(QMainWindow):
         self.ui.pushButton_open_received_path_keti.clicked.connect(self.clicked_open_received_path_keti)
         self.ui.pushButton_setting_keti.clicked.connect(self.clicked_setting_keti)
 
-        self.ui.pushButton_open_received_path_nextfoam.clicked.connect(self.clicked_open_received_path_nextfoam)
-
         self.ui.pushButton_connect_all.setStyleSheet(
             'background-color: #4a8c6f; color: white; border: 1px solid #3d7a5f;')
         self.ui.pushButton_disconnect_all.setStyleSheet(
@@ -257,7 +255,8 @@ class MainWindow(QMainWindow):
         self.ui.horizontalLayout_vueron_1.addWidget(self.client_vueron_01)
         self.ui.horizontalLayout_vueron_2.addWidget(self.client_vueron_02)
         self.ui.horizontalLayout_keti.addWidget(self.client_keti)
-        self.ui.horizontalLayout_nextfoam.addWidget(self.client_nextfoam)
+        # client_nextfoam은 더 이상 전용 UI 그룹박스가 없어 어느 레이아웃에도 붙이지 않지만,
+        # Connect All/Disconnect All을 통해 계속 연결/해제는 가능하다.
 
         make_dir(self.app_info.settings_path)
         make_dir(self.app_info.data_path)
@@ -1138,7 +1137,3 @@ class MainWindow(QMainWindow):
     def clicked_setting_datahub(self):
         dialog = SettingDialog(self)
         dialog.exec()
-
-    def clicked_open_received_path_nextfoam(self):
-        self.log('Open NEXTfoam received folder')
-        os.startfile(self.app_info.nextfoam_path)
