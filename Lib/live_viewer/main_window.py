@@ -1,5 +1,6 @@
 from pathlib import Path
 from time import sleep, time as _now_ts
+from datetime import datetime
 
 import os
 import sys
@@ -241,6 +242,23 @@ def _scan_folder(folder, sensors):
                             pass
     except OSError:
         pass
+
+    # 개별 원본 전체 저장(save_enabled)이 꺼져있으면 타임스탬프 파일이 전혀 안 생기므로,
+    # 그런 소스에 한해 saver가 항상 남겨두는 "최신 스냅샷"(latest_XXXX.vtk)으로 대체한다.
+    for name, ids in sensors:
+        if ids < 0 or results[name][0] is not None:
+            continue
+        latest_path = folder / f'latest_{ids:04d}.vtk'
+        try:
+            mtime = latest_path.stat().st_mtime
+        except OSError:
+            continue
+        if mtime > cutoff:
+            continue
+        dt = datetime.fromtimestamp(mtime)
+        fdate = int(dt.strftime('%Y%m%d'))
+        ftime = int(dt.strftime('%H%M%S')) * 1000 + dt.microsecond // 1000
+        results[name] = (str(latest_path), fdate, ftime)
 
     return results
 

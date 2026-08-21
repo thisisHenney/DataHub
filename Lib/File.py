@@ -37,6 +37,14 @@ _WRITER_QUEUE_HARD_WAIT_SEC = 2.0
 
 _on_point_data_lock = threading.Lock()
 
+# 개별 원본 저장(save_enabled)을 꺼도 Live Viewer가 소스별 최신 상태를 실시간에
+# 가깝게 보여줄 수 있도록, 소스(경로+ID)별로 "최신 스냅샷" 1개만 주기적으로 덮어쓴다.
+# 매 메시지 저장(누적)과 달리 디스크에 쌓이지 않고, 쓰기 빈도도 소스당 최대 1회/주기로
+# 제한되어 부하가 거의 없다.
+_LATEST_SNAPSHOT_INTERVAL_SEC = 1.0
+_latest_snapshot_lock = threading.Lock()
+_latest_snapshot_write_time = {}  # {(folder_path, id_prefix): 마지막으로 쓴 시각(monotonic)}
+
 
 def _deep_copy_vtk(data):
     """vtk 객체를 thread-safe하게 분리. None이면 None 반환."""
@@ -287,6 +295,20 @@ class FileSaverThread(QThread):
                     self.converter.array = np.array([])
                     with self.vtk_data_lock:
                         self.vtk_data_dict[filename] = vtk_result
+
+                    # save_enabled(개별 원본 전체 저장) 여부와 무관하게, Live Viewer용
+                    # "최신 스냅샷"은 소스(4자리 ID 접두어)당 1초에 한 번만 덮어써서 유지.
+                    id_prefix = filename[:4]
+                    latest_key = (str(filepath), id_prefix)
+                    now = time.monotonic()
+                    with _latest_snapshot_lock:
+                        last_write = _latest_snapshot_write_time.get(latest_key, 0.0)
+                        should_write_latest = (now - last_write) >= _LATEST_SNAPSHOT_INTERVAL_SEC
+                        if should_write_latest:
+                            _latest_snapshot_write_time[latest_key] = now
+                    if should_write_latest:
+                        vtk_for_latest = _deep_copy_vtk(vtk_result)
+                        _enqueue_write('vtk', filepath/'VTK'/f'latest_{id_prefix}.vtk', vtk_for_latest)
 
                     if self.save_enabled:
                         # writer 쪽에는 deep copy를 보내야 merger와 race 없이 안전하게 .Write() 가능
