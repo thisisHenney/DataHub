@@ -650,6 +650,11 @@ class MainWindow(QMainWindow):
                 self.view_dock.addActor(self.actor_dict[name])
             else:
                 self.view_dock.removeActor(self.actor_dict[name])
+                # 체크 해제된 항목의 갱신시간 표시를 지운다 — 안 지우면 화면엔 안 보이는데
+                # 트리에는 예전 시각이 그대로 남아 마치 옛날 데이터를 계속 쓰는 것처럼 보임.
+                if child.text(0) != name:
+                    child.setText(0, name)
+                self._last_loaded.pop(name, None)
         self._apply_render_order()
         self.view_dock.refresh()
 
