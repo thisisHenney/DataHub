@@ -17,7 +17,7 @@ import vtk
 from vtkmodules.vtkCommonDataModel import vtkImageData, vtkPolyData
 from vtkmodules.vtkIOLegacy import vtkDataSetReader
 
-from Lib.Json.JsonRW import JsonRW
+from Lib.Json.JsonRW import JsonRW, retry_on_permission_error
 from PySide6.QtCore import QThread, Signal
 from Lib.Converter.vtk_json_converter import VtkJsonConverter, CompanyType
 
@@ -88,7 +88,7 @@ class FileWriterThread(QThread):
                     writer.SetFileTypeToBinary()
                     writer.Write()
                     try:
-                        os.replace(tmp_path, str(Path(path).absolute()))
+                        retry_on_permission_error(lambda: os.replace(tmp_path, str(Path(path).absolute())))
                     except OSError:
                         try:
                             os.remove(tmp_path)
@@ -131,7 +131,7 @@ class FileWriterThread(QThread):
                     writer.SetFileTypeToBinary()
                     writer.Write()
                     try:
-                        os.replace(tmp_path, str(Path(path).absolute()))
+                        retry_on_permission_error(lambda: os.replace(tmp_path, str(Path(path).absolute())))
                     except OSError:
                         try:
                             os.remove(tmp_path)

@@ -5,11 +5,27 @@ import json
 import os
 import re
 import gzip
+import time
 from pathlib import Path
 
 _TRAILING_COMMA_RE = re.compile(r',\s*([\]}])')
 
 SPLIT_CHAR = '.'
+
+_PERMISSION_RETRY_COUNT = 3
+_PERMISSION_RETRY_DELAY_SEC = 0.05
+
+
+def retry_on_permission_error(func, retries=_PERMISSION_RETRY_COUNT, delay=_PERMISSION_RETRY_DELAY_SEC):
+    """Windows에서 백신 등이 방금 생성/close된 파일을 짧게 잠그는 경우가 있어
+    PermissionError만 몇 번 짧게 재시도한다 (다른 예외는 그대로 전파)."""
+    for attempt in range(retries):
+        try:
+            return func()
+        except PermissionError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(delay)
 
 
 class JsonRW:
@@ -78,8 +94,10 @@ class JsonRW:
         target = Path(self._file)
         tmp = target.with_suffix(target.suffix + '.tmp')
         try:
-            with open(tmp, 'w', encoding='utf-8') as f:
-                json.dump(self._buffer, f, ensure_ascii=False, indent=indent)
+            def _write():
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(self._buffer, f, ensure_ascii=False, indent=indent)
+            retry_on_permission_error(_write)
             os.replace(tmp, target)
         except Exception:
             try:
@@ -93,8 +111,10 @@ class JsonRW:
         target = Path(file).with_suffix('.json.gz')
         tmp = target.with_suffix(target.suffix + '.tmp')
         try:
-            with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=1) as f:
-                json.dump(self._buffer, f, ensure_ascii=False, indent=None)
+            def _write():
+                with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=1) as f:
+                    json.dump(self._buffer, f, ensure_ascii=False, indent=None)
+            retry_on_permission_error(_write)
             os.replace(tmp, target)
             self._file = target
         except Exception:
