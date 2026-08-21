@@ -58,24 +58,15 @@ class ClientNextfoam(MqttWidget):
             self.ui.port_comboBox.setCurrentText(f'{port}')
 
     def set_defaults_progressbar(self):
-        self.parent.ui.progressBar_tx_nextfoam.setRange(0, 100)
-        self.parent.ui.progressBar_tx_nextfoam.setValue(0)
-
-        self.parent.ui.progressBar_rx_nextfoam.setRange(0, 100)
-        self.parent.ui.progressBar_rx_nextfoam.setValue(0)
+        # NEXTfoam 전용 UI 그룹박스(및 세로 tx/rx 프로그레스바)가 제거되어 더 이상 표시할
+        # 위젯이 없음. 연결/해제 흐름에서 계속 호출되므로 메서드 자체는 남겨두고 no-op으로.
+        pass
 
     def set_change_progressbar_tx(self, running=False):
-        max_value = self.parent.ui.progressBar_tx_nextfoam.maximum()
-        if not running and max_value == 0:
-            self.parent.ui.progressBar_tx_nextfoam.setRange(0, 100)
-        elif running and max_value == 100:
-            self.parent.ui.progressBar_tx_nextfoam.setRange(0, 0)
+        pass
 
     def set_change_progressbar_rx(self, running=False):
-        if not running:
-            self.parent.ui.progressBar_rx_nextfoam.setRange(0, 100)
-        else:
-            self.parent.ui.progressBar_rx_nextfoam.setRange(0, 0)
+        pass
 
     def on_connected_task(self):
         self.ui.lineEdit.setText(f'Connected')

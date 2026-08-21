@@ -702,72 +702,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addLayout(self.horizontalLayout_3, 0, 0, 1, 7)
 
-        self.horizontalLayout_txrx_nextfoam = QHBoxLayout()
-        self.horizontalLayout_txrx_nextfoam.setSpacing(6)
-        self.horizontalLayout_txrx_nextfoam.setObjectName(u"horizontalLayout_txrx_nextfoam")
-        self.horizontalLayout_txrx_nextfoam.setSizeConstraint(QLayout.SizeConstraint.SetDefaultConstraint)
-        self.horizontalSpacer_3 = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_txrx_nextfoam.addItem(self.horizontalSpacer_3)
-
-        self.progressBar_tx_nextfoam = QProgressBar(self.groupBox)
-        self.progressBar_tx_nextfoam.setObjectName(u"progressBar_tx_nextfoam")
-        sizePolicy2.setHeightForWidth(self.progressBar_tx_nextfoam.sizePolicy().hasHeightForWidth())
-        self.progressBar_tx_nextfoam.setSizePolicy(sizePolicy2)
-        self.progressBar_tx_nextfoam.setMinimumSize(QSize(0, 20))
-        self.progressBar_tx_nextfoam.setMaximumSize(QSize(8, 16777215))
-        self.progressBar_tx_nextfoam.setFont(font2)
-        self.progressBar_tx_nextfoam.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.progressBar_tx_nextfoam.setStyleSheet(u"QProgressBar {\n"
-"        border: 1px solid gray;\n"
-"        text-align: center;\n"
-"    }\n"
-"    QProgressBar::chunk {\n"
-"        background-color:  darkmagenta;\n"
-"        height: 5px;\n"
-"        margin: 1px;\n"
-"    }")
-        self.progressBar_tx_nextfoam.setMaximum(100)
-        self.progressBar_tx_nextfoam.setValue(2)
-        self.progressBar_tx_nextfoam.setTextVisible(False)
-        self.progressBar_tx_nextfoam.setOrientation(Qt.Orientation.Vertical)
-        self.progressBar_tx_nextfoam.setInvertedAppearance(True)
-
-        self.horizontalLayout_txrx_nextfoam.addWidget(self.progressBar_tx_nextfoam)
-
-        self.progressBar_rx_nextfoam = QProgressBar(self.groupBox)
-        self.progressBar_rx_nextfoam.setObjectName(u"progressBar_rx_nextfoam")
-        sizePolicy2.setHeightForWidth(self.progressBar_rx_nextfoam.sizePolicy().hasHeightForWidth())
-        self.progressBar_rx_nextfoam.setSizePolicy(sizePolicy2)
-        self.progressBar_rx_nextfoam.setMinimumSize(QSize(0, 20))
-        self.progressBar_rx_nextfoam.setMaximumSize(QSize(8, 16777215))
-        self.progressBar_rx_nextfoam.setFont(font2)
-        self.progressBar_rx_nextfoam.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.progressBar_rx_nextfoam.setStyleSheet(u"QProgressBar {\n"
-"        border: 1px solid gray;\n"
-"        text-align: center;\n"
-"    }\n"
-"    QProgressBar::chunk {\n"
-"        background-color:  darkblue;\n"
-"        height: 5px;\n"
-"        margin: 1px;\n"
-"    }")
-        self.progressBar_rx_nextfoam.setMaximum(100)
-        self.progressBar_rx_nextfoam.setValue(2)
-        self.progressBar_rx_nextfoam.setTextVisible(False)
-        self.progressBar_rx_nextfoam.setOrientation(Qt.Orientation.Vertical)
-        self.progressBar_rx_nextfoam.setInvertedAppearance(False)
-        self.progressBar_rx_nextfoam.setTextDirection(QProgressBar.Direction.TopToBottom)
-
-        self.horizontalLayout_txrx_nextfoam.addWidget(self.progressBar_rx_nextfoam)
-
-        self.horizontalSpacer_4 = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_txrx_nextfoam.addItem(self.horizontalSpacer_4)
-
-
-        self.gridLayout.addLayout(self.horizontalLayout_txrx_nextfoam, 3, 0, 1, 7)
-
 
         self.verticalLayout_9.addLayout(self.gridLayout)
 
@@ -881,8 +815,6 @@ class Ui_MainWindow(object):
         self.groupBox_vueron.setTitle(QCoreApplication.translate("MainWindow", u"< Client - Vueron >", None))
         self.pushButton_open_received_path_vueron.setText(QCoreApplication.translate("MainWindow", u"\ub85c\uadf8 \ubcf4\uae30", None))
         self.pushButton_setting_vueron.setText(QCoreApplication.translate("MainWindow", u"\uc124\uc815", None))
-        self.progressBar_tx_nextfoam.setFormat("")
-        self.progressBar_rx_nextfoam.setFormat("")
         self.dockWidget_log.setWindowTitle(QCoreApplication.translate("MainWindow", u"Log", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("MainWindow", u"< Output >", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
