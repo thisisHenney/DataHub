@@ -3,7 +3,6 @@
 
 import asyncio
 import websockets
-import json
 from PySide6.QtCore import QThread, Signal, QTimer
 from PySide6.QtWidgets import QWidget
 from PySide6.QtWebSockets import QWebSocket
@@ -80,13 +79,12 @@ class WebSocketClientThread(QThread):
         try:
             while self._connected:
                 message = await self.websocket.recv()
-                try:
-                    json_data = json.loads(message)
-                    data = (json.dumps(json_data, indent=2), None)
-                    self.received_message.emit(data)
-                except json.JSONDecodeError:
-                    # self.handle_receive_error(ValueError("Invalid JSON data received"))
-                    ...
+                # JSON 파싱/검증은 여기서 하지 않고 그대로 넘긴다. 수신 클라이언트 쪽
+                # 백그라운드 파서 스레드가 어차피 다시 파싱하므로, 이 asyncio 루프(=이
+                # 스레드)에서 파싱+재조립(json.dumps indent=2, 특히 느림)까지 하면 그 시간
+                # 동안 서버의 PING에 제때 응답 못 해 ping_timeout(기본 20s)으로 연결이
+                # 끊기는 문제가 있었다.
+                self.received_message.emit((message, None))
 
         except websockets.exceptions.ConnectionClosedOK:
             pass
