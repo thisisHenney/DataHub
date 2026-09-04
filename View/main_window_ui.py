@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main_window.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.11.2
+## Created by: Qt User Interface Compiler version 6.11.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -702,6 +702,7 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addLayout(self.horizontalLayout_3, 0, 0, 1, 7)
 
+        self.gridLayout.setRowStretch(1, 1)
 
         self.verticalLayout_9.addLayout(self.gridLayout)
 
@@ -720,39 +721,15 @@ class Ui_MainWindow(object):
         self.dockWidgetContents_log.setObjectName(u"dockWidgetContents_log")
         self.verticalLayout_log = QVBoxLayout(self.dockWidgetContents_log)
         self.verticalLayout_log.setObjectName(u"verticalLayout_log")
-        self.groupBox_2 = QGroupBox(self.dockWidgetContents_log)
-        self.groupBox_2.setObjectName(u"groupBox_2")
-        font5 = QFont()
-        font5.setFamilies([u"Pretendard"])
-        font5.setPointSize(10)
-        font5.setBold(True)
-        self.groupBox_2.setFont(font5)
-        self.groupBox_2.setStyleSheet(u"QGroupBox {\n"
-"    border: 1 solid;\n"
-"    border-radius: 6;\n"
-"    margin-top: 9;\n"
-"    border-color : #c8c8c8;\n"
-"    padding: 3;\n"
-"}\n"
-"QGroupBox::title {\n"
-"    subcontrol-origin: margin;\n"
-"    subcontrol-position: top left;\n"
-"    left: 10;\n"
-"    padding: 2 3;\n"
-"}")
-        self.horizontalLayout_9 = QHBoxLayout(self.groupBox_2)
-        self.horizontalLayout_9.setObjectName(u"horizontalLayout_9")
-        self.plainTextEdit_output = QPlainTextEdit(self.groupBox_2)
+        self.verticalLayout_log.setContentsMargins(2, 2, 2, 2)
+        self.plainTextEdit_output = QPlainTextEdit(self.dockWidgetContents_log)
         self.plainTextEdit_output.setObjectName(u"plainTextEdit_output")
-        font6 = QFont()
-        font6.setPointSize(10)
-        self.plainTextEdit_output.setFont(font6)
+        font5 = QFont()
+        font5.setPointSize(10)
+        self.plainTextEdit_output.setFont(font5)
         self.plainTextEdit_output.setReadOnly(True)
 
-        self.horizontalLayout_9.addWidget(self.plainTextEdit_output)
-
-
-        self.verticalLayout_log.addWidget(self.groupBox_2)
+        self.verticalLayout_log.addWidget(self.plainTextEdit_output)
 
         self.horizontalLayout_8 = QHBoxLayout()
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
@@ -816,7 +793,6 @@ class Ui_MainWindow(object):
         self.pushButton_open_received_path_vueron.setText(QCoreApplication.translate("MainWindow", u"\ub85c\uadf8 \ubcf4\uae30", None))
         self.pushButton_setting_vueron.setText(QCoreApplication.translate("MainWindow", u"\uc124\uc815", None))
         self.dockWidget_log.setWindowTitle(QCoreApplication.translate("MainWindow", u"Log", None))
-        self.groupBox_2.setTitle(QCoreApplication.translate("MainWindow", u"< Output >", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
     # retranslateUi
 

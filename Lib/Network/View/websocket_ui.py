@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'websocket.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.11.2
+## Created by: Qt User Interface Compiler version 6.11.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -17,7 +17,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QSizePolicy, QSpacerItem,
-    QSplitter, QToolButton, QVBoxLayout, QWidget)
+    QToolButton, QVBoxLayout, QWidget)
 
 class Ui_Form_WebSocket(object):
     def setupUi(self, Form_WebSocket):
@@ -174,11 +174,10 @@ class Ui_Form_WebSocket(object):
 
         self.verticalLayout.addLayout(self.horizontalLayout_5)
 
-        self.splitter = QSplitter(Form_WebSocket)
-        self.splitter.setObjectName(u"splitter")
-        self.splitter.setFont(font1)
-        self.splitter.setOrientation(Qt.Orientation.Vertical)
-        self.lineEdit = QLineEdit(self.splitter)
+        self.verticalLayout_status = QVBoxLayout()
+        self.verticalLayout_status.setSpacing(2)
+        self.verticalLayout_status.setObjectName(u"verticalLayout_status")
+        self.lineEdit = QLineEdit(Form_WebSocket)
         self.lineEdit.setObjectName(u"lineEdit")
         self.lineEdit.setMinimumSize(QSize(0, 27))
         font5 = QFont()
@@ -195,18 +194,28 @@ class Ui_Form_WebSocket(object):
         self.lineEdit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lineEdit.setReadOnly(True)
         self.lineEdit.setClearButtonEnabled(False)
-        self.splitter.addWidget(self.lineEdit)
-        self.label_data_time = QLabel(self.splitter)
+
+        self.verticalLayout_status.addWidget(self.lineEdit)
+
+        self.label_data_time = QLabel(Form_WebSocket)
         self.label_data_time.setObjectName(u"label_data_time")
+        sizePolicy.setHeightForWidth(self.label_data_time.sizePolicy().hasHeightForWidth())
+        self.label_data_time.setSizePolicy(sizePolicy)
         font6 = QFont()
         font6.setFamilies([u"\ub9d1\uc740 \uace0\ub515"])
         font6.setPointSize(8)
         self.label_data_time.setFont(font6)
         self.label_data_time.setStyleSheet(u"color: #7f8c9b;")
         self.label_data_time.setAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
-        self.splitter.addWidget(self.label_data_time)
 
-        self.verticalLayout.addWidget(self.splitter)
+        self.verticalLayout_status.addWidget(self.label_data_time)
+
+        self.verticalSpacer_status = QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_status.addItem(self.verticalSpacer_status)
+
+
+        self.verticalLayout.addLayout(self.verticalLayout_status)
 
 
         self.retranslateUi(Form_WebSocket)

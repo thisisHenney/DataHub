@@ -184,7 +184,6 @@ class MainWindow(QMainWindow):
 
         self._initialize()
         self._setup_merge_info_ui()
-        self.ui.groupBox_2.setTitle('< Log >')
 
         self.setWindowTitle(f'DataHub-v1.2-[{self.app_info.data_path}]')
 
