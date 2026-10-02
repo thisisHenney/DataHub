@@ -133,6 +133,8 @@ class ClientPintel(MqttWidget):
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def _on_timer_reconnect(self):
+        if self.user_disconnected or not self.parent.is_reconnect:
+            return
         curtime = f'{datetime.now().strftime("%Y.%m.%d %H:%M:%S")}'
         self.parent.log(f'Pintel >> Reconnect at ({curtime})')
         self.connect_to_server()
@@ -242,15 +244,19 @@ class ClientPintel(MqttWidget):
         ...
 
     def send_message_task(self, topic, msg):
-        self.set_change_progressbar_tx(True)
+        # 머지 스레드(non-GUI)에서 호출되므로 위젯을 직접 건드리지 않는다.
+        # tx 진행바는 200ms txrx_timer(GUI 스레드)가 tx_count를 보고 갱신한다.
+        pass
 
     def on_restore_ui_task(self):
         self.set_disconnected_ui()
-        if self.parent.is_reconnect:
+        if self.parent.is_reconnect and not self.user_disconnected:
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def change_connect_ip(self, ip):
         if not ip == 'localhost':
+            if self.client.login_id and self.client.login_pw:
+                self.set_require_login(True)
             self.set_ip_port(ip, '')
         else:
             self.set_require_login(False)

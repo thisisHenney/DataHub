@@ -9,6 +9,7 @@ a = Analysis(
         ('Lib/live_viewer/nanji_drawing_new.png', '.'),
         ('Lib/live_viewer/nanji_20260522_001.png', '.'),
         ('settings', 'settings'),
+        ('Lib/Converter/grid.vtk', 'Lib/Converter'),
     ],
     hiddenimports=[
         'main_window',

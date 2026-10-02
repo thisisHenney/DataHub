@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*-coding:utf8-*-
 
+import html
 import json
 import os
 import shutil
@@ -120,6 +121,7 @@ class MainWindow(QMainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.ui.plainTextEdit_output.setMaximumBlockCount(5000)  # 장기 운영 시 로그 무한 증가 방지
 
         self._status_hint_widgets = {}  # widget -> statusbar에 표시할 문구 (마우스 hover 시)
 
@@ -300,7 +302,7 @@ class MainWindow(QMainWindow):
         text = f'[{timestamp}] {msg}'
         if 'Err' in msg or 'Error' in msg or 'Invalid' in msg:
             self.ui.plainTextEdit_output.appendHtml(
-                f'<span style="color: #e53935;">{text}</span>')
+                f'<span style="color: #e53935;">{html.escape(text)}</span>')
         else:
             self.ui.plainTextEdit_output.appendPlainText(text)
 

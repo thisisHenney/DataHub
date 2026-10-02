@@ -818,6 +818,7 @@ class MainWindow(QMainWindow):
         self._scan_thread = _FileScanThread(tasks, self)
         self._scan_thread.scan_done.connect(self._on_scan_complete)
         self._scan_thread.finished.connect(self._on_scan_thread_finished)
+        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
         self._scan_thread.start()
 
     def _on_scan_complete(self, results):
@@ -836,14 +837,15 @@ class MainWindow(QMainWindow):
                     self.view_dock.removeActor(self.actor_dict[base_name])
                 continue
 
-            if self._last_loaded.get(base_name) != latest_path:
+            load_key = (latest_path, latest_date, latest_time)
+            if self._last_loaded.get(base_name) != load_key:
                 self.reader_dict[base_name].SetFileName(latest_path)
                 self.reader_dict[base_name].Modified()
                 self.actor_dict[base_name].Modified()
-                self._last_loaded[base_name] = latest_path
+                self._last_loaded[base_name] = load_key
                 changed = True
 
-            lt = str(latest_time)
+            lt = f'{latest_time:09d}'
             times = lt[:-7]+':'+lt[-7:-5]+':'+lt[-5:-3]+'.'+lt[-3]
             item.setText(0, base_name + ': '+f'{latest_date:08d}'[-4:]+' '+times)
             self.view_dock.addActor(self.actor_dict[base_name])

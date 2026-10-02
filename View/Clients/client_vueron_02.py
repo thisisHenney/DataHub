@@ -125,6 +125,8 @@ class ClientVueron02(WebSocketWidget):
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def _on_timer_reconnect(self):
+        if self.user_disconnected or not self.parent.is_reconnect:
+            return
         curtime = f'{datetime.now().strftime("%Y.%m.%d %H:%M:%S")}'
         self.parent.log(f'Vueron2 >> Reconnect at ({curtime})')
         self.connect_to_server()
@@ -198,7 +200,7 @@ class ClientVueron02(WebSocketWidget):
 
     def on_restore_ui_task(self):
         self.set_disconnected_ui()
-        if self.parent.is_reconnect:
+        if self.parent.is_reconnect and not self.user_disconnected:
             QTimer.singleShot(3000, self._on_timer_reconnect)
 
     def change_connect_ip(self, ip):

@@ -31,6 +31,7 @@ class MqttClientThread(QThread):
         self.topics = {}    # {topic: state}
 
         self.client = mqtt.Client()
+        self.client.suppress_exceptions = True  # 콜백 예외로 loop 스레드가 죽지 않도록
 
         self._init_callback()
 
@@ -103,8 +104,12 @@ class MqttClientThread(QThread):
         self.disconnected.emit()
 
     def on_message(self, client, userdata, msg):
-        data = (msg.topic, msg.payload.decode())
-        self.received_message.emit(data)
+        # 예외가 콜백 밖으로 나가면 paho 네트워크 스레드가 조용히 종료되어 수신이 영구 중단됨
+        try:
+            data = (msg.topic, msg.payload.decode('utf-8', errors='replace'))
+            self.received_message.emit(data)
+        except Exception as e:
+            self.notice.emit(f'[mqtt:Err] Failed to handle message: {e}')
 
     def on_subscribe(self, client, userdata, mid, granted_qos):
         if 128 in granted_qos:
@@ -346,8 +351,8 @@ class MqttWidget(QWidget):
             return
 
         self.user_disconnected = True
-        if self.client.is_connected():
-            self.client.disconnect_from_server()
+        # 연결이 끊겨 paho가 내부 재접속 중일 때도(is_connected()==False) loop를 반드시 멈춘다
+        self.client.disconnect_from_server()
         self.disconnect_from_server_task()
 
     def disconnect_from_server_task(self):
